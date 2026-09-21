@@ -1,0 +1,6 @@
+target/
+/.idea/
+/tools/luban/.cache/
+/config/bin/
+/assets/config/*
+!/assets/config/.gitkeep
