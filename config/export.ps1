@@ -267,6 +267,24 @@ function Invoke-ExportProcess {
     }
 }
 
+function ConvertTo-ExportCrlf {
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [Parameter(Mandatory)][string]$RepositoryRoot,
+        [Parameter(Mandatory)][string]$StageRoot
+    )
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+    foreach ($file in Get-ChildItem -Path $Pattern -File) {
+        Assert-ExportPath $file.FullName $RepositoryRoot @($StageRoot)
+        $text = [System.IO.File]::ReadAllText($file.FullName, $utf8)
+        $crlf = [string]::Join('', @([char]13, [char]10))
+        $normalized = [System.Text.RegularExpressions.Regex]::Replace($text, '\r?\n', $crlf)
+        if ($normalized -ne $text) {
+            [System.IO.File]::WriteAllText($file.FullName, $normalized, $utf8)
+        }
+    }
+}
+
 function Set-ExportDependencyPath {
     param(
         [Parameter(Mandatory)][string]$Cargo,
@@ -429,6 +447,11 @@ try {
     Assert-ExportPath $manifestPath $repositoryRoot @($stageRoot)
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'The validator did not produce manifest.json.' }
     Invoke-ExportProcess $validatorPath @('validate-config', $stagedData) $stagedProject
+
+    # rustfmt writes LF line endings, but windows builders expect CRLF under core.autocrlf=true.
+    # Normalize published Rust modules back to CRLF before publishing so a regenerate does not
+    # show up as a spurious modification on Windows checkouts.
+    ConvertTo-ExportCrlf (Join-Path $stagedCode '*.rs') $repositoryRoot $stageRoot
 
     Write-Host 'Publishing the validated Rust modules and data together...'
     Publish-ExportDirectories $stagedCode $stagedData $codeOutputPath $dataOutputPath $repositoryRoot $stageRoot

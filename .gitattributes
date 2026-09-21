@@ -1,3 +1,0 @@
-# Force LF line endings for Luban-generated Rust config modules so exports
-# written with LF never show up as spurious modifications under core.autocrlf.
-config/generated/*.rs text eol=lf
