@@ -344,6 +344,8 @@ app.world_mut().insert_resource(catalog);
 - 不按内容去重两个不同 EffectId；内容相同不代表叠层身份相同。
 - 存档保存稳定配置 ID/名字，不保存 GameplayTag 位编号、AttributeId 或 AbilitySpecHandle。
 - `grant_ability` 将共享定义授予 ASC，并写入同一角色的 ConfiguredAbilities。
+  底层 `give_ability` 返回 `Result`；句柄耗尽会映射为
+  `ConfigErrorKind::AbilityHandleExhausted`，保留 Ability 行定位，且不修改已有技能或配置绑定。
 - `revoke_ability` 成对清除规格和映射；活动中的技能拒绝撤销并保留映射，已由底层清除的
   陈旧映射可以清理。需要再次授予时，先使用该接口完成撤销。
 - 输入系统通过 ConfiguredAbilities 查 Handle，通过 CompiledAbility 的 targeting 发起目标请求，
@@ -363,7 +365,7 @@ app.world_mut().insert_resource(catalog);
 | `Io`、`Capacity`、`Decode`、`Package` | 文件读写、边界限制、二进制解码、清单/schema/摘要或生成表契约 |
 | `Validation`、`Reference`、`InvalidValue` | 制作规则、构建所需引用、运行时不可表示的值 |
 | `MissingResource`、`Registration` | ECS 注册表缺失、名称/继承/区域注册失败 |
-| `UnknownAbility`、`UnsupportedLevel`、`AlreadyGranted`、`ActiveAbility` | 查询/授予/撤销时可分别处理的调用状态 |
+| `UnknownAbility`、`UnsupportedLevel`、`AlreadyGranted`、`AbilityHandleExhausted`、`ActiveAbility` | 查询/授予/撤销时可分别处理的调用状态，包括角色技能句柄耗尽 |
 | `Report` | 文本报告格式化失败 |
 
 位置用枚举明确区分文件、表、Resource 和操作。表位置包含表名、可选的行 ID/稳定名、

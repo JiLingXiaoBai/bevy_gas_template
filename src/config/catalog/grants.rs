@@ -1,7 +1,7 @@
 use super::{AbilityId, GameplayCatalog};
 use super::{ConfigError, ConfigErrorKind, ConfigLocation};
 use bevy::prelude::Component;
-use bevy_gas::{AbilitySpecHandle, AbilitySystemComponent};
+use bevy_gas::{AbilityGrantError, AbilitySpecHandle, AbilitySystemComponent};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -21,8 +21,8 @@ impl ConfiguredAbilities {
 /// Grants catalog ability `id` at `level` and records its owner-local handle.
 ///
 /// `asc` and `bindings` must belong to the same entity. Returns the granted handle,
-/// or an error for an unknown ability, unsupported level, or duplicate binding.
-/// No grant or binding changes are made when validation fails.
+/// or an error for an unknown ability, unsupported level, duplicate binding, or exhausted handles.
+/// No grant or binding changes are made when validation or allocation fails.
 pub fn grant_ability(
     asc: &mut AbilitySystemComponent,
     bindings: &mut ConfiguredAbilities,
@@ -51,7 +51,15 @@ pub fn grant_ability(
             "ability is already bound for this owner",
         ));
     }
-    let handle = asc.give_ability(Arc::clone(ability.definition()), level);
+    let handle = asc
+        .give_ability(Arc::clone(ability.definition()), level)
+        .map_err(|error| match error {
+            AbilityGrantError::HandleExhausted => ConfigError::new(
+                ConfigErrorKind::AbilityHandleExhausted,
+                ConfigLocation::table("Ability").row(id.0),
+                error.to_string(),
+            ),
+        })?;
     bindings.bindings.insert(id, handle);
     Ok(handle)
 }

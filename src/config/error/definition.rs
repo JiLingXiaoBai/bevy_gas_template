@@ -29,6 +29,8 @@ pub enum ConfigErrorKind {
     UnsupportedLevel,
     /// The owner already has a binding for this ability.
     AlreadyGranted,
+    /// The owner's ability-specification handle space is exhausted.
+    AbilityHandleExhausted,
     /// An active ability cannot be revoked.
     ActiveAbility,
     /// An inspection report could not be formatted.
