@@ -15,9 +15,9 @@ use std::sync::Arc;
 /// attribute, or runtime failures with contextual startup information.
 pub type GameResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
-/// Observed state after executing the configured level-five fireball.
+/// Observed state after executing the configured level-five laser.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FireballReport {
+pub struct LaserReport {
     /// The target's current Health attribute.
     pub target_health: f32,
     /// The caster's current Mana attribute.
@@ -27,7 +27,7 @@ pub struct FireballReport {
 }
 
 #[derive(Resource)]
-pub(super) struct FireballScenario {
+pub(super) struct LaserScenario {
     pub caster: Entity,
     pub target: Entity,
     pub health: AttributeId,
@@ -72,7 +72,7 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
     let targeting = Arc::clone(
         catalog
             .ability(AbilityId(1001))
-            .ok_or("sample requires fireball ability 1001")?
+            .ok_or("sample requires laser ability 1001")?
             .targeting(),
     );
     let caster = world
@@ -94,7 +94,7 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
         ))
         .id();
     world.insert_resource(catalog);
-    world.insert_resource(FireballScenario {
+    world.insert_resource(LaserScenario {
         caster,
         target,
         health,
@@ -105,9 +105,9 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
     Ok(())
 }
 
-pub(super) fn queue_fireball(
+pub(super) fn queue_laser(
     mut input: ResMut<CastInput>,
-    scenario: Res<FireballScenario>,
+    scenario: Res<LaserScenario>,
     mut execution: ResMut<GameplayExecutionQueue>,
     mut targeting: ResMut<TargetingRequestQueue>,
 ) {
@@ -127,20 +127,20 @@ pub(super) fn queue_fireball(
 }
 
 pub(super) fn read_report(
-    scenario: Res<FireballScenario>,
+    scenario: Res<LaserScenario>,
     manager: Res<AttributeIdManager>,
     mut attributes: Query<&mut AttributeSet>,
     active: Query<&ActiveGameplayAbility>,
-) -> GameResult<FireballReport> {
+) -> GameResult<LaserReport> {
     collect_report(&scenario, &manager, &mut attributes, &active)
 }
 
 pub(super) fn collect_report(
-    scenario: &FireballScenario,
+    scenario: &LaserScenario,
     manager: &AttributeIdManager,
     attributes: &mut Query<&mut AttributeSet>,
     active: &Query<&ActiveGameplayAbility>,
-) -> GameResult<FireballReport> {
+) -> GameResult<LaserReport> {
     let target_health = attributes
         .get_mut(scenario.target)?
         .get_current_value(manager, scenario.health)?
@@ -149,7 +149,7 @@ pub(super) fn collect_report(
         .get_mut(scenario.caster)?
         .get_current_value(manager, scenario.mana)?
         .ok_or("missing caster Mana")?;
-    Ok(FireballReport {
+    Ok(LaserReport {
         target_health,
         caster_mana,
         active_abilities: active.iter().count(),

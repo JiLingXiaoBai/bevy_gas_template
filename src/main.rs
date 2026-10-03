@@ -1,4 +1,4 @@
-//! Launches the independent game or verifies its configured fireball without a window.
+//! Launches the independent game or verifies its configured laser without a window.
 
 use bevy::log::{LogPlugin, info};
 use bevy::prelude::*;
@@ -31,7 +31,7 @@ fn main() -> GameResult<()> {
         App::new().add_plugins(LogPlugin::default());
         let report = run_headless(&directory)?;
         info!(
-            "Fireball level 5 after 12 ticks: target Health={}, caster Mana={}, active abilities={}",
+            "Laser level 5 after 12 ticks: target Health={}, caster Mana={}, active abilities={}",
             report.target_health, report.caster_mana, report.active_abilities
         );
         Ok(())

@@ -44,7 +44,7 @@ cargo run
 cargo run -- --headless
 ```
 
-初始目标生命 500、施法者法力 100；5 级火球完成后目标生命 320、法力 80、活跃技能为 0。验收失败以非零退出码返回；若 RUST_LOG 隐藏了信息日志，可先设置 `$env:RUST_LOG = "info"`。
+初始目标生命 500、施法者法力 100；5 级示例技能完成后目标生命 320、法力 80、活跃技能为 0。验收失败以非零退出码返回；若 RUST_LOG 隐藏了信息日志，可先设置 `$env:RUST_LOG = "info"`。
 默认数据目录由编译时工程根目录定位到 `assets/config/`，不依赖启动命令的工作目录。部署后可通过 `--config` 指定实际配置目录，例如：
 
 ```powershell
@@ -60,14 +60,14 @@ cargo run -- --headless --config "./assets/config"
 
 导表在临时项目中生成、编译并校验本游戏配置，全部通过才发布到 `config/generated/` 和 `assets/config/`。暂存 Cargo.toml 将当前本地 GAS 路径转为绝对路径，仍使用同一份库源码，根清单保持 `../bevy_gas`；构建使用独立的 `target/config-export/`，避免影响游戏的编译产物。首次导表需要单独编译校验程序及依赖。
 
-生成代码与 `.bytes` 必须来自同一次导表；不要手动编辑生成 Rust 或 manifest。默认运行时不要求 manifest；开启 `config-validation` 时会校验清单、摘要和 Schema。
+生成代码与 `.bytes` 必须来自同一次导表；不要手动编辑生成 Rust 或 manifest。默认运行时会校验清单、摘要和 Schema；`--no-default-features` 关闭后不要求 manifest。
 
 ```powershell
-cargo run --features config-validation --bin gas-config -- inspect assets/config 1001 5
-cargo run --features config-validation --bin gas-config -- validate-config assets/config
+cargo run --bin gas-config -- inspect assets/config 1001 5
+cargo run --bin gas-config -- validate-config assets/config
 ```
 
-无窗口模式的预期数值是当前火球样例的验收条件。改变该技能的数值或时序时，同步更新样例验收与测试；普通窗口模式直接使用导出的配置。
+无窗口模式的预期数值是当前示例技能的验收条件。改变该技能的数值或时序时，同步更新示例验收与测试；普通窗口模式直接使用导出的配置。
 
 ## 检查
 

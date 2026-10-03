@@ -6,7 +6,8 @@ default-run = "bevy_gas_template"
 publish = false
 
 [features]
-default = []
+# Validation ships on by default; build the minimal runtime with `--no-default-features`.
+default = ["config-validation"]
 config-validation = ["dep:blake3", "dep:serde_json"]
 
 [dependencies]

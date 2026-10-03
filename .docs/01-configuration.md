@@ -42,8 +42,9 @@ Catalog 构建保留原实现的失败原子性：克隆 UniqueNamePool、Gamepl
 校验构建使用独立的 `target/config-export/`，与游戏的 `target/debug/` 隔离，避免临时工程的编译时路径污染正常游戏产物。首次需要编译这套校验依赖，后续导表复用它。清单生成与完整业务校验通过后，发布 `config/generated/` 和 `assets/config/`；失败按原流程回滚。
 `config-validation` 只属于本模板配置层；当前本地 GAS 不再定义该 feature。
 
-新生成的 Rust 模块和数据始终配套。运行时默认只加载 .bytes；启用 config-validation 才读取 manifest
-并验证结构摘要与内容摘要。二进制资产由导表生成且 Git 忽略。当前导表支持 Windows x64；首次克隆后先准备同级 GAS，再执行
+新生成的 Rust 模块和数据始终配套。运行时默认读取 manifest
+并验证结构摘要与内容摘要；`--no-default-features` 关闭后只加载 .bytes。二进制资产由导表生成且 Git 忽略。
+当前导表支持 Windows x64；首次克隆后先准备同级 GAS，再执行
 `tools/luban/setup.ps1`，再运行 `cargo fetch --locked` 缓存 Rust 依赖，随后导表并 `cargo run`；日常导表保留 offline/locked 策略。
 
 ## 新增类型与字段
@@ -62,7 +63,7 @@ Catalog 构建保留原实现的失败原子性：克隆 UniqueNamePool、Gamepl
 
 配置集成测试使用本游戏自己的生成类型与 compiler，覆盖注册失败保持、引用顺序、数据解码、
 额外成本、授予/撤销和校验 feature。游戏的无窗口验收读取本项目真实导表产物，再调用外部 GAS
-执行火球。窗口和无窗口路径共享场景初始化与状态读取。
+执行示例技能。窗口和无窗口路径共享场景初始化与状态读取。
 
 完整工具链与 MCP 约定见 [02 — Luban 工具链](02-luban-toolchain.md)，表字段、编译规则与错误处理见
 [03 — Excel 技能配置与 GAS 接入](03-gas-configuration.md)。所有测试入口及运行命令见项目 README。改变样例的数值与时间线后，应同时更新对应验收预期。

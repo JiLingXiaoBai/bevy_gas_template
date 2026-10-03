@@ -5,9 +5,9 @@
 项目在 `config/` 维护 XML 定义与 Excel 数据，在 `tools/luban/` 固定 Luban、Luban.Agent 与 Luban.Mcp 工具链。
 日常通过 `config/export.ps1` 将配置导出为 Rust 代码和二进制数据；工具缓存与配置源文件分开存放。
 Codex 通过 Luban.Mcp 查询表结构、校验和生成配置；Luban.Agent 保留为 MCP 的查询与校验后端。
-当前配置包含八张 GAS 表，提供真实 Excel 火球配置包。
+当前配置包含八张 GAS 表，提供真实 Excel 配置包。
 Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_template` 包的 `config` 模块，始终参与编译；
-默认关闭的 `config-validation` feature 启用配置包校验、完整业务校验和离线工具。加载后构造共享 GAS 定义，
+默认开启的 `config-validation` feature 启用配置包校验、完整业务校验和离线工具；最小构建用 `--no-default-features` 关闭。加载后构造共享 GAS 定义，
 本模板通过同级本地 path 依赖使用 GAS 公共 API，当前本地库已移除配置层；配置与开发工具由本模板维护。
 同级目录布局、本地联调与可选 Git 依赖见 [04 — 模板使用与依赖维护](04-template-and-dependencies.md)。
 仓库只维护根 `Cargo.toml`。业务结构与使用流程见
@@ -28,9 +28,9 @@ Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_templa
 | `config/luban.conf`                     | 输入目录、定义文件和导出目标                                                       | 提交           |
 | `config/export.ps1`                     | 项目导表入口，暂存生成、编译、玩法校验后发布                                       | 提交           |
 | `config/templates/rust-bin/`            | 项目维护的 Rust Result 解码模板                                                    | 提交           |
-| `src/config.rs`、`src/config/`          | 默认提供二进制读取、解码和 GAS 编译；包校验、完整业务校验及离线工具由 feature 启用 | 提交           |
+| `src/config.rs`、`src/config/`          | 提供二进制读取、解码和 GAS 编译；包校验、完整业务校验及离线工具默认随 feature 启用 | 提交           |
 | `src/bin/gas_config.rs`                 | 由 `config-validation` 启用的 CLI                                                  | 提交           |
-| `src/gameplay/`                        | 窗口与无窗口共享的火球场景                                                                 | 提交           |
+| `src/gameplay/`                        | 窗口与无窗口共享的示例场景                                                                 | 提交           |
 | `config/LICENSE.Luban`                  | 初始示例文件的上游 MIT 许可证                                                      | 提交           |
 | `config/generated/`                     | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，无独立 Cargo 清单                      | 提交，导表生成 |
 | `assets/config/`                           | 八张 GAS 表的二进制数据及 `manifest.json`                                          | 忽略，导表生成 |
@@ -79,7 +79,7 @@ Cargo 的 `target/` 构建缓存、`assets/config/` 和工具 `.cache/` 均由 G
 
 本仓库是游戏，导表成功后直接发布二进制到本游戏 `assets/config/`。部署到其他机器时，
 将该目录作为游戏资源一并部署；可通过 `--config` 为游戏入口指定实际目录。
-默认运行时只需 `.bytes`，不读取 `manifest.json`；启用 `config-validation` 时需一并部署匹配清单。
+默认运行时需一并部署匹配的 `manifest.json`；`--no-default-features` 最小运行时只需 `.bytes`，不读取清单。
 导表入口始终启用该 feature，在发布前完成包校验与业务校验，生成协议和模板保持一致。
 
 ## 初始示例来源
@@ -275,7 +275,7 @@ Git blob，与工具链 v5.0.0 的提交 `52d329fb93be79810ed090f489ba4bf3821c4e
 ### 发现、知识库与维护
 
 Codex 会从项目 `.agents/skills/` 发现 skill 的名称和描述，在任务匹配或显式指定时读取正文。
-安装后从下一轮消息即可使用，例如 `$luban-excel-fill 修改 gas.TbAbility 中 Fireball 的 max_level`。
+安装后从下一轮消息即可使用，例如 `$luban-excel-fill 修改 gas.TbAbility 中某技能的 max_level`。
 如果技能列表未刷新，再重启 Codex。机制参考 [Codex 官方说明](https://learn.chatgpt.com/docs/build-skills)。
 
 `.docs/` 是按需阅读的知识库，单独复制 `SKILL.md` 到其中不会注册 skill，也不表示每轮都会
@@ -309,7 +309,7 @@ Luban.Mcp 5.0.0 已在本机 .NET `10.0.9` 下通过真实 stdio 握手、工具
 迁移仅保留脚本、锁文件、配置输入与指南。工具从本游戏锁文件安装到自己的缓存；不依赖
 原 GAS 仓库的工具目录、缓存或临时验证产物。日常项目产物统一使用 `config/generated/` 和 `assets/config/`。
 项目使用 `config/templates/rust-bin/` 与 `src/config/` 中的安全解码实现，解码返回 Result。
-生成 Rust 模块与配置适配代码始终编译进同一个包；真实 Excel 火球示例包含
+生成 Rust 模块与配置适配代码始终编译进同一个包；真实 Excel 示例包含
 消耗、冷却、目标过滤、按等级伤害及同 tick 动作结束。导表入口为每次候选产物建立临时
 单包项目，重新编译并执行完整校验后才发布。发布流程失败时恢复上一套代码和数据；
 检查回滚行为时必须使用隔离临时目录，不能以正式产物作为故障测试对象。

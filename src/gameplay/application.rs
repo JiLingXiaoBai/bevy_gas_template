@@ -1,6 +1,6 @@
 use super::scenario::{
-    CastInput, FireballReport, FireballScenario, GameResult, collect_report, initialize_scenario,
-    queue_fireball, read_report,
+    CastInput, GameResult, LaserReport, LaserScenario, collect_report, initialize_scenario,
+    queue_laser, read_report,
 };
 use bevy::ecs::system::RunSystemOnce;
 use bevy::prelude::*;
@@ -19,18 +19,18 @@ pub fn default_config_directory() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/config")
 }
 
-/// Executes the game-owned fireball configuration without opening a window.
+/// Executes the game-owned laser configuration without opening a window.
 ///
 /// `directory` contains the Luban binary tables. This drives activation tick zero
 /// and twelve subsequent fixed ticks, returning the observed attributes and active
 /// ability count. Loading, compilation, and unexpected gameplay results return an error.
-pub fn run_headless(directory: &Path) -> GameResult<FireballReport> {
+pub fn run_headless(directory: &Path) -> GameResult<LaserReport> {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, GameplayAbilitySystemPlugin))
         .insert_resource(CastInput(true))
         .add_systems(
             FixedUpdate,
-            queue_fireball.in_set(GameplayAbilitySystemSet::RequestProducers),
+            queue_laser.in_set(GameplayAbilitySystemSet::RequestProducers),
         );
     initialize_scenario(app.world_mut(), directory)?;
     app.finish();
@@ -41,23 +41,23 @@ pub fn run_headless(directory: &Path) -> GameResult<FireballReport> {
     let report = app
         .world_mut()
         .run_system_once(read_report)
-        .map_err(|error| format!("Could not read the fireball result: {error:?}"))??;
+        .map_err(|error| format!("Could not read the laser result: {error:?}"))??;
     if report.target_health != 320.0 || report.caster_mana != 80.0 || report.active_abilities != 0 {
-        return Err(format!("Configured fireball smoke test failed: {report:?}; expected target Health=320, caster Mana=80, active abilities=0").into());
+        return Err(format!("Configured laser smoke test failed: {report:?}; expected target Health=320, caster Mana=80, active abilities=0").into());
     }
     Ok(report)
 }
 
-/// Runs the interactive fireball sample until its window closes or Escape is pressed.
+/// Runs the interactive laser sample until its window closes or Escape is pressed.
 ///
 /// `directory` supplies the game's Luban binary tables. Space requests the configured
-/// level-five fireball through GAS targeting and execution queues. Initialization and
+/// level-five laser through GAS targeting and execution queues. Initialization and
 /// unsuccessful application exits return an error; normal shutdown returns `Ok(())`.
 pub fn run_windowed(directory: &Path) -> GameResult<()> {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
-            title: "Game-owned configuration | GAS Fireball".into(),
+            title: "Game-owned configuration | GAS Laser".into(),
             resolution: (960, 640).into(),
             ..default()
         }),
@@ -71,14 +71,14 @@ pub fn run_windowed(directory: &Path) -> GameResult<()> {
     .add_systems(Startup, setup_visuals)
     .add_systems(
         FixedUpdate,
-        queue_fireball.in_set(GameplayAbilitySystemSet::RequestProducers),
+        queue_laser.in_set(GameplayAbilitySystemSet::RequestProducers),
     )
     .add_systems(
         Update,
         (read_input, read_execution_results, update_hud).chain(),
     );
     initialize_scenario(app.world_mut(), directory)?;
-    info!(configuration = %directory.display(), "Loaded game-owned fireball configuration");
+    info!(configuration = %directory.display(), "Loaded game-owned laser configuration");
     let exit = app.run();
     if exit.is_error() {
         return Err(format!("The game exited unsuccessfully: {exit:?}").into());
@@ -97,11 +97,11 @@ struct CastStatus(String);
 
 impl Default for CastStatus {
     fn default() -> Self {
-        Self("Ready. Press Space to cast the configured fireball.".into())
+        Self("Ready. Press Space to cast the configured laser.".into())
     }
 }
 
-fn setup_visuals(mut commands: Commands, scenario: Res<FireballScenario>) {
+fn setup_visuals(mut commands: Commands, scenario: Res<LaserScenario>) {
     commands.spawn((
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
@@ -141,7 +141,7 @@ fn setup_visuals(mut commands: Commands, scenario: Res<FireballScenario>) {
         StatusText,
     ));
     commands.spawn((
-        Text::new("BLUE: CASTER                         RED: TARGET\n\nSpace: cast     Esc: quit\nEach accepted fireball spends 20 Mana. Wait for cooldown before casting again."),
+        Text::new("BLUE: CASTER                         RED: TARGET\n\nSpace: cast     Esc: quit\nEach accepted laser spends 20 Mana. Wait for cooldown before casting again."),
         TextFont {
             font_size: FontSize::Px(17.0),
             ..default()
@@ -164,7 +164,7 @@ fn read_input(
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
         input.0 = true;
-        status.0 = "Fireball requested; waiting for the next fixed tick.".into();
+        status.0 = "Laser requested; waiting for the next fixed tick.".into();
     }
     if keyboard.just_pressed(KeyCode::Escape) {
         exit.write(AppExit::Success);
@@ -179,7 +179,7 @@ fn read_execution_results(
         match &result.outcome {
             GameplayExecutionOutcome::Succeeded => {
                 status.0 =
-                    "Fireball accepted. Its configured tasks control damage and completion.".into();
+                    "Laser accepted. Its configured tasks control damage and completion.".into();
             }
             GameplayExecutionOutcome::Rejected(error) => {
                 status.0 = format!("Cast rejected: {error}");
@@ -193,7 +193,7 @@ fn read_execution_results(
 }
 
 fn update_hud(
-    scenario: Res<FireballScenario>,
+    scenario: Res<LaserScenario>,
     manager: Res<AttributeIdManager>,
     mut attributes: Query<&mut AttributeSet>,
     active: Query<&ActiveGameplayAbility>,
@@ -203,7 +203,7 @@ fn update_hud(
 ) {
     let display = match collect_report(&scenario, &manager, &mut attributes, &active) {
         Ok(report) => format!(
-            "FIREBALL / LEVEL 5\n\nCaster Mana: {:.0}       Target Health: {:.0}\nActive abilities: {}       Fixed ticks: 20/s\n\n{}",
+            "LASER / LEVEL 5\n\nCaster Mana: {:.0}       Target Health: {:.0}\nActive abilities: {}       Fixed ticks: 20/s\n\n{}",
             report.caster_mana, report.target_health, report.active_abilities, status.0
         ),
         Err(error) => format!("Could not read gameplay state: {error}"),
