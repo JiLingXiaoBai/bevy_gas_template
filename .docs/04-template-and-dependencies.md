@@ -49,9 +49,24 @@ my_game 可以替换为 bevy_gas_template 或任意游戏目录名，保持同�
 修改 path 指向实际包含 GAS Cargo.toml 的目录。path 始终相对于游戏自己的 Cargo.toml。
 [Cargo 本地依赖文档](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-path-dependencies)
 
+## Bevy 0.20 升级基线
+
+模板和同级 GAS 库统一使用 Bevy 0.20.0，最低要求 Rust 1.97.1，edition 仍为 2024。
+最低工具链版本来自 [Bevy 0.20.0 Cargo 元数据](https://docs.rs/crate/bevy/0.20.0/source/Cargo.toml)。
+更新两个项目的 Bevy 依赖后，应分别由 Cargo 更新锁文件，并按下面的本地联调流程验证；
+保持 `bevy_gas = { path = "../bevy_gas" }`，无需切换到 Git 依赖。
+
+GAS 的生命周期 Observer 已适配 `On<Discard<T>>`，旧的 `On<Discard, T>` 写法不再使用；
+`Add` 和 `Remove` 的组件泛型也移入事件类型。模板仍按配置建立技能，请求生产系统仍在既有 `FixedUpdate`
+阶段生产请求，GAS 的 FIFO、同 tick 结算和 startup 同步执行契约保持不变。详细说明见
+[GAS 插件与生命周期](../../bevy_gas/.docs/02-plugins-and-lifecycle.md#bevy-020-升级基线)。
+
+现有模板的 `Camera2d`、`Sprite::from_color` 可继续使用；HUD 的 `TextFont` 已显式指定
+`FontSize::Px`，不依赖字体大小的默认单位。本次引擎升级不调整游戏配置格式或技能数值。
+
 ## 首次工具准备与运行
 
-当前固定 Luban 安装与导表流程支持 Windows x64，需要 Rust edition 2024 工具链、Git、
+当前固定 Luban 安装与导表流程支持 Windows x64，需要 Rust 1.97.1+（edition 2024）工具链、Git、
 PowerShell 7.2+、系统 Microsoft.NETCore.App 8.0.0+ 正式版，以及 PATH 中的 7z.exe 或 7za.exe。
 其他平台尚未配置对应的工具安装与导表流程。首次需要网络获取固定版本工具和锁定的 Cargo 依赖。
 

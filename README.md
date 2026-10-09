@@ -26,7 +26,7 @@ workspace/
 
 ## 首次运行
 
-当前导表工具链支持 **Windows x64**，需要支持 Rust edition 2024 的工具链、Git、PowerShell 7.2+、系统 .NET Runtime 8+ 和 PATH 中的 7-Zip。项目使用 Bevy 0.19.1。其他平台暂未提供对应的 Luban 安装与导表流程。
+当前导表工具链支持 **Windows x64**，需要 Rust 1.97.1+（edition 2024）工具链、Git、PowerShell 7.2+、系统 .NET Runtime 8+ 和 PATH 中的 7-Zip。项目使用 Bevy 0.20.0；版本要求和迁移说明见 [依赖维护](.docs/04-template-and-dependencies.md#bevy-020-升级基线)。其他平台暂未提供对应的 Luban 安装与导表流程。
 
 先确认 `../bevy_gas/Cargo.toml` 存在，再在新仓库根目录依次运行。首次需要网络下载固定工具与其他 Cargo 依赖，二进制配置资产由导表生成：
 

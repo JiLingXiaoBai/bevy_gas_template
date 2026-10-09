@@ -1,6 +1,6 @@
 # AGENTS.md — bevy_gas_template
 
-这是独立游戏模板，使用 Rust edition 2024、Bevy 0.19.1，默认通过 `bevy_gas = { path = "../bevy_gas" }` 使用同级本地库。
+这是独立游戏模板，使用 Rust 1.97.1+（edition 2024）、Bevy 0.20.0，默认通过 `bevy_gas = { path = "../bevy_gas" }` 使用同级本地库。
 模板或游戏目录可任意命名，但默认布局要求与 `bevy_gas` 同级；本地库改动在下次构建生效，无需推送。
 游戏拥有 `config/`、`src/config/` 与技能配置，GAS 核心源码保留在依赖仓库。
 
