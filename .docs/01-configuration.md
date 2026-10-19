@@ -4,7 +4,8 @@
 
 `bevy_gas_template` 拥有 Excel、XML Schema、生成 Rust 类型、二进制包、加载器、业务校验、配置编译器和 Catalog。
 游戏代码通过本包的 `config` 访问这些类型，通过 `bevy_gas` 访问 GAS 公共类型。
-GAS 核心无须知道游戏的 Excel 字段或配置 ID。
+GAS 核心无须知道游戏的 Excel 字段、配置 ID、空间索引或表现方式。
+本包 `gameplay::targeting` 拥有索敌定义和队列；编译器构造这些游戏类型，再将结果交给 GAS。
 
 配置模块已完整归属游戏，使用 `bevy_gas_template::config`（游戏包内部可使用 `crate::config`）与
 本游戏的 `config::compile_catalog`。当前本地 GAS 已移除配置模块、Excel 和导表工具；配置完整归属游戏。
@@ -16,12 +17,17 @@ GAS 核心无须知道游戏的 Excel 字段或配置 ID。
 
 ## 启动流程
 
-1. 安装 GameplayAbilitySystemPlugin。
+示例启动与场景位于独立 `application` 模块，它组合 `config`、`gameplay` 和 GAS。
+可复用的 `gameplay` 实现不读取示例配置或创建 Laser 场景；配置编译器仍只引用纯索敌定义。
+详见 [07 — 架构与插件组合](07-architecture-and-composition.md)。
+
+1. 安装 GameplayAbilitySystemPlugin；使用模板索敌时另装 TargetingPlugin，需要表现时另装 PositionPresentationPlugin。
 2. 使用游戏 load_tables 读取自己生成的八张表。
-3. 使用游戏 compile_catalog 校验引用、数值和动作载荷，并建立共享 GAS 定义。
+3. 使用游戏 compile_catalog 校验引用、数值和动作载荷，建立共享 GAS 定义和游戏 TargetingDefinition。
 4. 将游戏 GameplayCatalog 插入 World。
 5. 创建 GameplayAbilitySystemBundle，初始化属性，以游戏 grant_ability 授予技能并保存 ID 到 Handle 的映射。
-6. 将目标请求或激活请求放入公开 GAS 队列，沿固定 tick 的运行时管线执行。
+6. 将目标请求放入游戏 TargetingRequestQueue，确认目标后写入 GAS GameplayExecutionQueue；
+   已知目标也可直接提交激活或效果请求。完整空间与调度边界见 [05 — 空间索敌](05-spatial-targeting.md)。
 
 Catalog 构建保留原实现的失败原子性：克隆 UniqueNamePool、GameplayTagManager、AttributeIdManager，
 在快照中完成注册与全部定义构造，成功后才提交。属性区域和既存标签继承冲突均返回错误。

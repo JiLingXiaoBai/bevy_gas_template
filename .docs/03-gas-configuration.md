@@ -21,7 +21,7 @@
 | `config/generated/`            | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，包含 DTO、表索引与结构描述 |
 | `assets/config/`                  | 导出配置包，包括八张 GAS 表的 bytes 与 manifest.json；Git 忽略         |
 | `src/bin/gas_config.rs`        | 启用 `config-validation` 后可用的配置预览与导表校验 CLI                |
-| `src/gameplay/`               | 共享场景、窗口演示与无窗口验收                                         |
+| `src/gameplay/`               | 位置、空间索敌、共享场景、窗口演示与无窗口验收                                         |
 | `tools/luban/.cache/export/`   | 每次导表的临时单包项目、验证产物与发布备份                             |
 
 导表产物包含上述八张 GAS 表的八个 `.bytes` 文件和 `manifest.json`。
@@ -35,13 +35,18 @@
 `PreparedTables` 借用生成行，统一解析实际使用的动作和幅度参数，根据父表 ID 列表建立
 技能动作、效果修改器和额外成本的有序索引；编译、完整校验和预览共用这一视图，
 不重复扫描和解释同一关系。
-生成 DTO 与 GAS 运行时类型仍然分离，feature 行为与配置协议保持不变。文件归属见
+生成 DTO 与运行时类型仍然分离，feature 行为与配置协议保持不变。
+目标编译器构造本包 `gameplay::targeting::TargetingDefinition`，技能和效果仍构造 `bevy_gas` 类型。
+两类定义分别由 CompiledAbility 持有，GAS 技能定义不反向包含游戏索敌规则。文件归属见
 [01 — 配置所有权与扩展](./01-configuration.md)。
 
 ## Feature 边界
 
-`default = ["config-validation"]`。需要更小的依赖面或更快构建时，用 `--no-default-features` 关闭该 feature；
-`config-validation` 不控制配置读取、编译和授予能力，也不控制生成模块的可见性。
+`default = ["config-validation", "windowed"]`。两个 feature 独立：`config-validation` 控制配置校验与工具，
+`windowed` 控制 Bevy 窗口和渲染依赖。`--no-default-features` 同时关闭两者；无窗口程序需要完整校验时，
+使用 `--no-default-features --features config-validation`；窗口程序需要关闭校验时，使用
+`--no-default-features --features windowed`。`config-validation` 不控制配置读取、编译和授予能力，
+也不控制生成模块的可见性。
 
 | 能力                                                                                                                            | 默认构建                                           | `--no-default-features` 最小构建     |
 | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------ |
@@ -51,7 +56,7 @@
 | 构建所需引用、运行时注册表容量与状态、基本数值合法性                                                                            | 始终检查                                           | 始终检查                             |
 | 命名规范、未使用字段、跨表业务约束、时间线、成本与冷却策略                                                                      | `compile_catalog` 在注册前对准备结果执行完整校验   | 跳过完整业务校验                     |
 | `package_schema_hash`、`MAX_MANIFEST_BYTES`、`validate_tables`、`describe_ability*`、`write_package_manifest`、`gas-config` CLI | 可用                                               | 不编译                               |
-| 示例窗口与无窗口入口                                                                                                          | 可用，并执行包校验和完整业务校验                   | 可用，直接读取表数据                 |
+| 示例窗口与无窗口入口 | 均可用，并执行包校验和完整业务校验 | 无窗口入口可用，直接读取表数据；窗口入口返回 feature 未启用错误 |
 
 默认运行时按生成的 `TABLE_FILES` 读取 `.bytes`，并校验同次导出的 `manifest.json`；最小构建不要求
 `manifest.json`，已有清单即使无效也会忽略。I/O、分配边界、解码和必要构建错误仍返回 `Result`。
@@ -209,7 +214,8 @@ EndAbility。原结束标记为 false 时，保留时间线中原有的 EndAbili
 
 ApplyEffect 的 Primary/AllCaptured 分别使用激活时捕获的主目标/全部目标。
 命中时重新抓取、独立 Self 动作、地面点空目标、弹体和跨技能配置动作尚未开放。
-真实弹体可由游戏层通过现有 EmitEvent、Targeting 和统一效果队列扩展。
+真实弹体可由游戏层通过现有 EmitEvent、游戏索敌和 GAS 统一效果队列扩展。
+当前点索敌不代表碰撞命中；空间与未来命中规则的职责见 [05 — 空间索敌](05-spatial-targeting.md)。
 
 ## Additional Costs 表配置
 
@@ -305,7 +311,8 @@ cargo test --test config_test configured_costs_reach_the_inventory_provider_when
 两种构建均保留动作载荷、实际使用的幅度参数、所需引用和运行时注册状态检查。
 未被技能或效果引用的动作、修改器和额外成本行允许保留；最小构建不使用它们，完整制作
 校验仍检查其自身字段和引用，涉及父定义的策略按实际引用的父列表执行。
-World 应先安装 GameplayAbilitySystemPlugin。
+编译配置的 World 应先安装 GameplayAbilitySystemPlugin；仅编译定义不要求空间索引。
+实际执行目标请求的应用另装游戏 TargetingPlugin。
 
 ```rust
 use bevy_gas_template::config::{compile_catalog, load_tables};
@@ -337,8 +344,9 @@ app.world_mut().insert_resource(catalog);
   `ConfigErrorKind::AbilityHandleExhausted`，保留 Ability 行定位，且不修改已有技能或配置绑定。
 - `revoke_ability` 成对清除规格和映射；活动中的技能拒绝撤销并保留映射，已由底层清除的
   陈旧映射可以清理。需要再次授予时，先使用该接口完成撤销。
-- 输入系统通过 ConfiguredAbilities 查 Handle，通过 CompiledAbility 的 targeting 发起目标请求，
-  continuation 再进入统一 GameplayExecutionQueue。
+- 输入系统通过 ConfiguredAbilities 查 Handle，通过 CompiledAbility 的 targeting 向游戏 TargetingRequestQueue 发起请求，
+  游戏插件的 continuation 再进入 GAS GameplayExecutionQueue。场景实体显式挂载 LogicalPosition，
+  请求原点也取自逻辑位置；渲染 Transform 不作为索敌依据。
 
 成本与冷却在激活时提交；技能结束不会自动移除已应用效果。取消后自动退款和延迟 Commit
 不属于本配置层的行为。
@@ -397,7 +405,8 @@ cargo build
 ```
 
 `cargo test` 默认即验证包校验和完整业务校验；`cargo test --all-features` 与默认构建一致，仍保留为回归口径。
-测试均通过 `tests/config_test.rs` 加载 `tests/config_test/` 中的测试。
+配置测试通过 `tests/config_test.rs` 加载 `tests/config_test/`；位置、索敌与场景集成测试
+由 `tests/gameplay_test.rs` 加载 `tests/gameplay_test/`。
 这些测试自建表数据和临时配置包，不依赖导表生成的 `assets/config/`。
 配置变更使用完整导表验证候选 Rust 模块、真实二进制包和 GAS 语义，再运行上面的
 配置预览、无窗口验收与额外成本集成测试检查实际行为。修改 Excel、schema 或模板后，必须重新导表并同步提交

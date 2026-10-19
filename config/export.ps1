@@ -424,7 +424,7 @@ try {
     Invoke-ExportProcess $cargo @('fmt', '--manifest-path', $stagedManifest) $stagedProject
     $buildOutput = Invoke-ExportProcess $cargo @(
         'build', '--manifest-path', $stagedManifest,
-        '--features', 'config-validation', '--bin', 'gas-config',
+        '--no-default-features', '--features', 'config-validation', '--bin', 'gas-config',
         '--offline', '--locked', '--target-dir', $targetDirectory,
         '--message-format=json-render-diagnostics'
     ) $stagedProject -CaptureOutput

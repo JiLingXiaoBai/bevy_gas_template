@@ -30,7 +30,7 @@ Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_templa
 | `config/templates/rust-bin/`            | 项目维护的 Rust Result 解码模板                                                    | 提交           |
 | `src/config.rs`、`src/config/`          | 提供二进制读取、解码和 GAS 编译；包校验、完整业务校验及离线工具默认随 feature 启用 | 提交           |
 | `src/bin/gas_config.rs`                 | 由 `config-validation` 启用的 CLI                                                  | 提交           |
-| `src/gameplay/`                        | 窗口与无窗口共享的示例场景                                                                 | 提交           |
+| `src/gameplay/`                        | 位置/空间索敌模块，以及窗口与无窗口共享的场景                                                                 | 提交           |
 | `config/LICENSE.Luban`                  | 初始示例文件的上游 MIT 许可证                                                      | 提交           |
 | `config/generated/`                     | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，无独立 Cargo 清单                      | 提交，导表生成 |
 | `assets/config/`                           | 八张 GAS 表的二进制数据及 `manifest.json`                                          | 忽略，导表生成 |
@@ -54,7 +54,7 @@ cargo run
 原游戏依赖：当前 `bevy_gas` 的本地 path 在暂存 Cargo.toml 中转为绝对路径，
 仍引用同一份本地库源码，根清单保持相对路径；以后若选择 Git 依赖，其 URL 与 rev 保留原样；
 不复制 GAS 源码，当前不支持其他本地 path 依赖。校验程序独占 `target/config-export/`，
-与游戏 `target/debug/` 隔离，避免 CARGO_MANIFEST_DIR 等编译时路径污染。格式化后以 `--features config-validation --offline --locked`
+与游戏 `target/debug/` 隔离，避免 CARGO_MANIFEST_DIR 等编译时路径污染。格式化后以 `--no-default-features --features config-validation --offline --locked`
 编译真实配置 CLI。新 CLI 生成清单、读取真实二进制并构建 GAS 定义。全部成功后发布代码与数据，
 发布失败恢复原目录；并发导表由排他锁拒绝。原生进程失败保留非零退出码。
 首次导表前运行 `cargo fetch --locked` 准备依赖缓存；独立校验目录首次仍需完整编译，后续导表复用它。发布不保证两个目录对并发读取者瞬时切换，

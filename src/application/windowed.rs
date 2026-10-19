@@ -1,58 +1,21 @@
-use super::scenario::{
-    CastInput, GameResult, LaserReport, LaserScenario, collect_report, initialize_scenario,
-    queue_laser, read_report,
-};
-use bevy::ecs::system::RunSystemOnce;
+use super::GameResult;
+use super::scenario::{CastInput, LaserScenario, collect_report, initialize_scenario, queue_laser};
+use crate::gameplay::position::{PositionPresentation, PositionPresentationPlugin};
+use crate::gameplay::targeting::TargetingPlugin;
 use bevy::prelude::*;
 use bevy::text::FontSize;
 use bevy_gas::{
     ActiveGameplayAbility, AttributeIdManager, AttributeSet, GameplayAbilitySystemPlugin,
     GameplayAbilitySystemSet, GameplayExecutionOutcome, GameplayExecutionResult,
 };
-use std::path::{Path, PathBuf};
-
-/// Returns the game's default binary configuration directory.
-///
-/// The absolute path is based on this package's manifest directory, so launching
-/// the executable from another working directory still loads the game's data.
-pub fn default_config_directory() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/config")
-}
-
-/// Executes the game-owned laser configuration without opening a window.
-///
-/// `directory` contains the Luban binary tables. This drives activation tick zero
-/// and twelve subsequent fixed ticks, returning the observed attributes and active
-/// ability count. Loading, compilation, and unexpected gameplay results return an error.
-pub fn run_headless(directory: &Path) -> GameResult<LaserReport> {
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, GameplayAbilitySystemPlugin))
-        .insert_resource(CastInput(true))
-        .add_systems(
-            FixedUpdate,
-            queue_laser.in_set(GameplayAbilitySystemSet::RequestProducers),
-        );
-    initialize_scenario(app.world_mut(), directory)?;
-    app.finish();
-    app.cleanup();
-    for _ in 0..=12 {
-        app.world_mut().run_schedule(FixedUpdate);
-    }
-    let report = app
-        .world_mut()
-        .run_system_once(read_report)
-        .map_err(|error| format!("Could not read the laser result: {error:?}"))??;
-    if report.target_health != 320.0 || report.caster_mana != 80.0 || report.active_abilities != 0 {
-        return Err(format!("Configured laser smoke test failed: {report:?}; expected target Health=320, caster Mana=80, active abilities=0").into());
-    }
-    Ok(report)
-}
+use std::path::Path;
 
 /// Runs the interactive laser sample until its window closes or Escape is pressed.
 ///
 /// `directory` supplies the game's Luban binary tables. Space requests the configured
-/// level-five laser through GAS targeting and execution queues. Initialization and
+/// level-five laser through game-owned targeting and the GAS execution queue. Initialization and
 /// unsuccessful application exits return an error; normal shutdown returns `Ok(())`.
+/// Requires the `windowed` feature; builds without it expose an entry that returns an error.
 pub fn run_windowed(directory: &Path) -> GameResult<()> {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -63,7 +26,11 @@ pub fn run_windowed(directory: &Path) -> GameResult<()> {
         }),
         ..default()
     }))
-    .add_plugins(GameplayAbilitySystemPlugin)
+    .add_plugins((
+        GameplayAbilitySystemPlugin,
+        TargetingPlugin,
+        PositionPresentationPlugin,
+    ))
     .insert_resource(ClearColor(Color::srgb(0.025, 0.035, 0.06)))
     .insert_resource(Time::<Fixed>::from_hz(20.0))
     .init_resource::<CastInput>()
@@ -110,13 +77,13 @@ fn setup_visuals(mut commands: Commands, scenario: Res<LaserScenario>) {
         }),
         Transform::from_xyz(2.5, 0.0, 0.0),
     ));
-    commands.entity(scenario.caster).insert(Sprite::from_color(
-        Color::srgb(0.15, 0.65, 1.0),
-        Vec2::splat(0.8),
+    commands.entity(scenario.caster).insert((
+        Sprite::from_color(Color::srgb(0.15, 0.65, 1.0), Vec2::splat(0.8)),
+        PositionPresentation::interpolated(),
     ));
-    commands.entity(scenario.target).insert(Sprite::from_color(
-        Color::srgb(0.9, 0.24, 0.3),
-        Vec2::splat(0.8),
+    commands.entity(scenario.target).insert((
+        Sprite::from_color(Color::srgb(0.9, 0.24, 0.3), Vec2::splat(0.8)),
+        PositionPresentation::interpolated(),
     ));
     commands.spawn((
         Sprite::from_color(Color::srgb(1.0, 0.55, 0.12), Vec2::new(4.0, 0.06)),

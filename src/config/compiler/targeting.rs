@@ -3,9 +3,8 @@
 use super::numeric::square_is_finite;
 use super::registration::resolve_tags;
 use super::{ConfigError, ConfigErrorKind, ConfigLocation, data};
-use bevy_gas::{
-    GameplayTag, TagRequirements, TargetingDefinition, TargetingOperation, TargetingSortOrder,
-};
+use crate::gameplay::targeting::{TargetingDefinition, TargetingOperation, TargetingSortOrder};
+use bevy_gas::{GameplayTag, TagRequirements};
 use std::collections::BTreeMap;
 
 pub(super) fn compile_targeting(

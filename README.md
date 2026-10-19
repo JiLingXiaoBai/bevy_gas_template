@@ -1,6 +1,6 @@
 # bevy_gas_template
 
-用于创建独立 Bevy 游戏的 GitHub 仓库模板。游戏拥有 Excel、Schema、生成代码、配置编译器、技能索引及 Luban 工具，默认通过同级目录的本地 path 依赖使用 GAS：
+用于创建独立 Bevy 游戏的 GitHub 仓库模板。游戏拥有 Excel、Schema、生成代码、配置编译器、技能索引、输入绑定、独立空间随机、逻辑位置、动态 AABB 索敌及 Luban 工具，默认通过同级目录的本地 path 依赖使用 GAS：
 
 ```toml
 bevy_gas = { path = "../bevy_gas" }
@@ -16,7 +16,7 @@ workspace/
 
 游戏目录可以叫 `bevy_gas_template` 或其他名称，只要仍与 `bevy_gas` 同级，默认相对路径就有效。
 请另行取得兼容的 GAS 源码放到该位置，或按实际位置修改 path。Cargo 不会为 path 依赖自动下载库。
-当前本地 GAS 已移除配置层；游戏使用自己的配置模块。修改本地库后，下次构建即可使用，不需要提交或推送。
+当前本地 GAS 不再拥有配置、输入绑定、几何采样、空间索敌和位置表现；游戏使用自己的配置与 Gameplay 模块。修改本地库后，下次构建即可使用，不需要提交或推送。
 
 ## 从模板创建游戏
 
@@ -44,6 +44,15 @@ cargo run
 cargo run -- --headless
 ```
 
+需要不含窗口与渲染依赖的构建时，保留配置校验可使用：
+
+```powershell
+cargo run --no-default-features --features config-validation -- --headless
+```
+
+默认 feature 为 `windowed` 和 `config-validation`，两者独立。完全关闭默认 feature 时还会关闭
+完整配置校验；未开启 `windowed` 时窗口入口返回明确错误。
+
 初始目标生命 500、施法者法力 100；5 级示例技能完成后目标生命 320、法力 80、活跃技能为 0。验收失败以非零退出码返回；若 RUST_LOG 隐藏了信息日志，可先设置 `$env:RUST_LOG = "info"`。
 默认数据目录由编译时工程根目录定位到 `assets/config/`，不依赖启动命令的工作目录。部署后可通过 `--config` 指定实际配置目录，例如：
 
@@ -51,6 +60,41 @@ cargo run -- --headless
 cargo run -- --config "./assets/config"
 cargo run -- --headless --config "./assets/config"
 ```
+
+## 空间索敌与表现
+
+模板通过 `gameplay::position`、`gameplay::spatial`、`gameplay::targeting` 分别维护逻辑位置与表现、
+内部动态 AABB 树、目标规则与请求队列。应用显式安装 `TargetingPlugin`，需要表现时再安装
+`PositionPresentationPlugin`；GAS 插件只提供技能、效果和目标结果契约。
+`TargetingPlugin` 自动安装 `GameplaySchedulePlugin`。无索敌应用可单独安装调度插件，获得移动阶段的
+顺序而不创建索敌资源；同时显式安装时将调度插件放在索敌插件之前。
+
+移动系统使用游戏 `GameplaySet::Movement`，请求生产使用 GAS `RequestProducers`，随后游戏
+`SpatialSync` / `Targeting` 在 GAS resolver 前生成目标并提交请求。范围查询仍基于逻辑位置点，
+不读取插值后的 Transform；当前没有单位体积相交或攻击命中检测，也没有新增第三方依赖。
+
+无窗口位置与插值示例：
+
+```powershell
+cargo run --example logical_position_targeting
+```
+
+详细接口、插件安装、旧路径迁移和测试见 [空间、索敌与 GAS 接入](.docs/05-spatial-targeting.md)。
+
+## 输入绑定与空间随机
+
+`gameplay::ability_input::AbilityInputBindings<Action>` 将游戏逻辑动作映射到同实体 ASC 的技能
+Handle；GAS 接收已经解析的激活请求。输入缓冲、设备映射和触发策略由游戏维护。
+输入示例已从 GAS 迁移到模板：
+
+```powershell
+cargo run --example ability_input_bindings
+```
+
+`gameplay::randoms::SpatialRandom` 提供 Bevy 数学与形状采样，按需显式初始化，
+与 GAS 效果概率的 `Random` 使用独立状态。模板复用现有 `rand` 0.10.2，并直接启用同版本
+官方 `bevy_shape/rand`；没有新增其他第三方库。完整用法与迁移见
+[输入绑定与空间随机](.docs/06-input-and-spatial-random.md)。
 
 ## 修改配置
 
@@ -76,15 +120,21 @@ cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 cargo test --all-features
+cargo clippy --no-default-features --all-targets -- -D warnings
+cargo test --no-default-features
 cargo build
 cargo run -- --headless
 ```
 
 ## 开发边界
 
+应用层、插件组合和窗口构建边界见 [架构与插件组合](.docs/07-architecture-and-composition.md)。
+
 - 游戏配置和适配层：`config/`、`src/config.rs`、`src/config/`。
-- 游戏行为与入口：`src/gameplay.rs`、`src/gameplay/`、`src/main.rs`。
-- GAS 执行、属性聚合和任务机制：同级 `../bevy_gas` 中的本地库。
+- 可复用输入绑定、空间随机、独立调度、位置/表现、空间索引和索敌：`src/gameplay.rs`、`src/gameplay/`。
+- 示例应用、场景与窗口/无窗口入口：`src/application.rs`、`src/application/`；旧 `gameplay` 入口兼容导出。
+- 游戏程序入口：`src/main.rs`；攻击命中、移动与动画规则由游戏按需扩展。
+- GAS 执行、属性聚合、任务机制和目标结果契约：同级 `../bevy_gas` 中的本地库。
 - 模板更新与 GAS 改动分别由游戏维护；本地库改动参与下次构建，接口或依赖变化后完成导表和游戏回归验证。
 
 新增表或公式由游戏维护 Schema 与编译映射。新的原生 AbilityTask 机制、ModifierOperation 仍需库支持；当前未引入通用任务注册协议。当前已直接使用本地库，联调与可选 Git 依赖的说明见 [模板使用与依赖维护](.docs/04-template-and-dependencies.md#本地联调)。

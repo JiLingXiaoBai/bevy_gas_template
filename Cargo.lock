@@ -937,7 +937,9 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_gas",
+ "bevy_shape",
  "blake3",
+ "rand",
  "serde_json",
 ]
 

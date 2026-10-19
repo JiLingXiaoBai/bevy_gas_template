@@ -1,5 +1,6 @@
+use crate::gameplay::targeting::TargetingDefinition;
 use bevy::prelude::Resource;
-use bevy_gas::{AttributeId, GameplayAbility, GameplayEffect, GameplayTag, TargetingDefinition};
+use bevy_gas::{AttributeId, GameplayAbility, GameplayEffect, GameplayTag};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

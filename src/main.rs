@@ -2,7 +2,7 @@
 
 use bevy::log::{LogPlugin, info};
 use bevy::prelude::*;
-use bevy_gas_template::gameplay::{
+use bevy_gas_template::application::{
     GameResult, default_config_directory, run_headless, run_windowed,
 };
 use std::env;

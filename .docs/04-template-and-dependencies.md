@@ -87,6 +87,23 @@ Cargo 直接构建 path 指向的本地库；cargo fetch 只负责缓存其他�
 日常仅改表时重新执行 export.ps1，再运行游戏或 `cargo run -- --headless`；完整检查命令见项目 README。
 导表采用 offline/locked 构建，依赖未缓存时应先完成 `cargo fetch --locked`。
 
+## 窗口与无窗口依赖
+
+默认开启 `windowed` 和 `config-validation`，原窗口体验与校验行为保持不变。
+`windowed` 启用 Bevy 原有默认功能；基础依赖只保留 ECS、数学、Transform、时间和日志等能力，
+位置插值并不需要 GPU，因此在无窗口构建中仍可使用。
+
+```powershell
+cargo run --no-default-features -- --headless
+cargo run --no-default-features --features config-validation -- --headless
+cargo run --no-default-features --features config-validation --bin gas-config -- validate-config assets/config
+```
+
+第一条同时关闭完整配置校验；后两条保留校验。未启用 `windowed` 时调用窗口入口会返回明确错误，
+CLI 应显式使用 `--headless`。导表暂存工程同样只启用 `config-validation`，不编译窗口和渲染。
+原 `gameplay` 下的应用入口保持兼容导出，新代码从 `application` 导入，见
+[07 — 架构与插件组合](07-architecture-and-composition.md)。
+
 ## 本地联调
 
 当前已使用本地 path 依赖。修改同级 bevy_gas 的源码后，下次构建游戏或导表就会使用修改后的代码，
@@ -103,6 +120,33 @@ Cargo.lock 不记录本地库的源码提交，团队需要自行约定使用的
 
 模板自身更新和 GAS 库改动分别维护：新模板文件不会自动合入已创建的游戏，
 修改 GAS 也不会自动更新游戏的 Excel、工具脚本或配置编译器。
+
+## 空间与索敌迁移
+
+当前模板接收原 GAS 库中的逻辑位置、动态 AABB 树、索敌定义/队列和可选表现。
+GAS 只保留 `AbilityTargetData` / `AbilityTargetHit` / `AbilityActivationTargets` 契约，
+默认与自定义成本插件组均不再安装空间索敌或表现。
+
+游戏需同步调整导入，显式安装 `TargetingPlugin` / 所需的 `PositionPresentationPlugin`，
+将三个空间阶段改为游戏 `GameplaySet`；配置编译器引用本包索敌定义。
+本次迁移不改变 Excel、Schema 或二进制包结构，不新增第三方依赖，不恢复扫描后备，
+也不把原有点索敌改成体积碰撞。模块和测试迁移清单见
+[05 — 空间、索敌与 GAS 接入](05-spatial-targeting.md)。
+
+## 输入绑定与空间随机迁移
+
+GAS 已移除 `ability_input` 领域与所有输入绑定重导出。游戏改从本包
+`gameplay::ability_input` 导入 `AbilityInputBindings` 和 `AbilityInputBindingError`；
+示例与测试随之移入本模板，名称和绑定行为保持不变。
+
+`Random` 的 `from_rng`、`sample_interior`、`sample_boundary` 迁移到本包
+`gameplay::randoms::SpatialRandom`，使用独立 `StdRng`，由游戏按需显式初始化。
+官方 `bevy_shape/rand` 直接依赖从 GAS 转到模板，复用已有 `rand` 0.10.2，
+不引入新的第三方库或版本。两库分别更新 Cargo.lock 并完成回归。
+
+空间采样不再消耗 GAS 概率序列；旧混合随机流的回放应明确版本变化。
+本次不调整技能提交时机，不新增任务类型或具体游戏动作流程。
+完整迁移和验证命令见 [06 — 输入绑定与空间随机](06-input-and-spatial-random.md)。
 
 ## 可选的固定 Git 依赖
 

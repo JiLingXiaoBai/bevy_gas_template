@@ -1,19 +1,16 @@
+use super::GameResult;
 use crate::config::{AbilityId, ConfiguredAbilities, compile_catalog, grant_ability, load_tables};
+use crate::gameplay::position::LogicalPosition;
+use crate::gameplay::targeting::{
+    Targetable, TargetingContinuation, TargetingDefinition, TargetingInput, TargetingRequestQueue,
+};
 use bevy::prelude::*;
 use bevy_gas::{
     AbilityActivationContext, AbilitySpecHandle, ActiveGameplayAbility, AttributeId,
     AttributeIdManager, AttributeSet, GameplayAbilitySystemBundle, GameplayExecutionQueue,
-    Targetable, TargetingContinuation, TargetingDefinition, TargetingInput, TargetingRequestQueue,
 };
-use std::error::Error;
 use std::path::Path;
 use std::sync::Arc;
-
-/// The result of game initialization or deterministic gameplay verification.
-///
-/// Successful calls return their requested value; errors preserve configuration,
-/// attribute, or runtime failures with contextual startup information.
-pub type GameResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 /// Observed state after executing the configured level-five laser.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,8 +77,7 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
             Name::new("Caster"),
             caster_bundle,
             bindings,
-            Transform::IDENTITY,
-            GlobalTransform::IDENTITY,
+            LogicalPosition(Vec3::ZERO),
         ))
         .id();
     let target = world
@@ -89,8 +85,7 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
             Name::new("Target"),
             target_bundle,
             Targetable,
-            Transform::from_translation(Vec3::X * 5.0),
-            GlobalTransform::from_translation(Vec3::X * 5.0),
+            LogicalPosition(Vec3::X * 5.0),
         ))
         .id();
     world.insert_resource(catalog);
@@ -108,16 +103,21 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
 pub(super) fn queue_laser(
     mut input: ResMut<CastInput>,
     scenario: Res<LaserScenario>,
+    positions: Query<&LogicalPosition>,
     mut execution: ResMut<GameplayExecutionQueue>,
     mut targeting: ResMut<TargetingRequestQueue>,
 ) {
     if !std::mem::take(&mut input.0) {
         return;
     }
+    let Ok(position) = positions.get(scenario.caster) else {
+        error!("cannot request laser targeting without the caster's logical position");
+        return;
+    };
     let chain = execution.new_root_chain(scenario.ability);
     targeting.push_request(
         scenario.caster,
-        TargetingInput::new(Vec3::ZERO, Vec3::X).with_explicit_target(scenario.target),
+        TargetingInput::new(position.0, Vec3::X).with_explicit_target(scenario.target),
         Arc::clone(&scenario.targeting),
         TargetingContinuation::activate_ability(
             scenario.ability,

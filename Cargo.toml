@@ -6,15 +6,23 @@ default-run = "bevy_gas_template"
 publish = false
 
 [features]
-# Validation ships on by default; build the minimal runtime with `--no-default-features`.
-default = ["config-validation"]
+# Window support and validation ship by default; disable them for a minimal headless runtime.
+default = ["config-validation", "windowed"]
+windowed = ["bevy/default"]
 config-validation = ["dep:blake3", "dep:serde_json"]
 
 [dependencies]
-bevy = "0.20.0"
+bevy = { version = "0.20.0", default-features = false, features = ["std", "multi_threaded", "bevy_log"] }
 bevy_gas = { path = "../bevy_gas" }
+# Game-owned sampling reuses the existing Bevy and rand versions.
+bevy_shape = { version = "0.20.0", default-features = false, features = ["rand"] }
+rand = "0.10.2"
 blake3 = { version = "1.8.7", optional = true }
 serde_json = { version = "1.0", optional = true }
+
+[dev-dependencies]
+# Input tests and examples exercise keyboard mapping without requiring window support.
+bevy = { version = "0.20.0", default-features = false, features = ["keyboard"] }
 
 [[bin]]
 name = "gas-config"

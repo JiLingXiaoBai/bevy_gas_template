@@ -6,9 +6,10 @@ use super::{
     AbilityId, CompiledAbility, ConfigError, ConfigErrorKind, ConfigLocation, EffectId,
     PreparedActionKind, PreparedTables, PreparedTargetScope,
 };
+use crate::gameplay::targeting::TargetingDefinition;
 use bevy_gas::{
     AbilityTags, AbilityTaskDef, AbilityTaskOnFinishedDef, AdditionalCost, GameplayAbility,
-    GameplayEffect, GameplayTag, TargetingDefinition, UniqueName,
+    GameplayEffect, GameplayTag, UniqueName,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
