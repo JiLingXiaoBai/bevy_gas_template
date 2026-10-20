@@ -62,8 +62,6 @@ pub struct Tables {
     pub tb_modifier: Arc<crate::config::generated::gas::TbModifier>,
     /// Contains the gas.TbAbility records.
     pub tb_ability: Arc<crate::config::generated::gas::TbAbility>,
-    /// Contains the gas.TbAbilityAdditionalCost records.
-    pub tb_ability_additional_cost: Arc<crate::config::generated::gas::TbAbilityAdditionalCost>,
     /// Contains the gas.TbAbilityTask records.
     pub tb_ability_task: Arc<crate::config::generated::gas::TbAbilityTask>,
     /// Contains the gas.TbTargeting records.
@@ -89,10 +87,6 @@ impl Tables {
             tb_ability: crate::config::generated::gas::TbAbility::new(&mut loader(
                 "gas_tbability",
             )?)?,
-            tb_ability_additional_cost:
-                crate::config::generated::gas::TbAbilityAdditionalCost::new(&mut loader(
-                    "gas_tbabilityadditionalcost",
-                )?)?,
             tb_ability_task: crate::config::generated::gas::TbAbilityTask::new(&mut loader(
                 "gas_tbabilitytask",
             )?)?,
@@ -110,7 +104,6 @@ pub const TABLE_FILES: &[&str] = &[
     "gas_tbeffect",
     "gas_tbmodifier",
     "gas_tbability",
-    "gas_tbabilityadditionalcost",
     "gas_tbabilitytask",
     "gas_tbtargeting",
 ];

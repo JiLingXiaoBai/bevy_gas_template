@@ -2,7 +2,7 @@
 
 ## 范围与目录
 
-支持标签、属性、效果、修改器、技能、额外消耗、动作时间线和目标规则八张表。
+支持标签、属性、效果、修改器、技能、动作时间线和目标规则七张表；额外消耗作为技能表的内联结构列表维护。
 配置使用固定 Luban 5.0.0 的 `rust-bin + bin + --strict`，经安全读取和业务编译后形成
 `GameplayCatalog` Resource。配置接入位于游戏 `bevy_gas_template` 包的 `config` 模块，
 运行时接口和生成代码始终参与游戏编译；模板从自己的配置模块加载数据，只使用依赖库的 GAS 公共 API。
@@ -13,31 +13,31 @@
 | 路径                           | 职责                                                                   |
 | ------------------------------ | ---------------------------------------------------------------------- |
 | `config/tables/gas.*.xlsx`     | 策划维护的数据、Luban 字段类型与说明                                   |
-| `config/defines/gas.xml`       | 八张 GAS 表的登记与普通枚举定义                                        |
+| `config/defines/gas.xml`       | 七张 GAS 表的登记、普通枚举与内联额外消耗 Bean 定义                                        |
 | `config/defines/builtin.xml`   | Luban 内置定义                                                         |
 | `config/templates/rust-bin/`   | 项目维护的安全 Rust 模板                                               |
 | `src/config.rs`、`src/config/` | 配置门面，以及解码、校验、GAS 编译、加载和包校验实现                   |
 | `src/config/decoding/`         | 仅使用标准库的 Safe Rust、Result 二进制解码实现                        |
 | `config/generated/`            | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，包含 DTO、表索引与结构描述 |
-| `assets/config/`                  | 导出配置包，包括八张 GAS 表的 bytes 与 manifest.json；Git 忽略         |
+| `assets/config/`                  | 导出配置包，包括七张 GAS 表的 bytes 与 manifest.json；Git 忽略         |
 | `src/bin/gas_config.rs`        | 启用 `config-validation` 后可用的配置预览与导表校验 CLI                |
 | `src/gameplay/`               | 可复用的位置、空间索敌、输入、随机与命令能力                            |
 | `src/application/`、`src/game/` | 共享模拟装配与自己的游戏业务入口                                      |
 | `examples/configured_game/`   | 可删除的配置演示、窗口与无窗口验收及其测试                              |
 | `tools/luban/.cache/export/`   | 每次导表的临时单包项目、验证产物与发布备份                             |
 
-导表产物包含上述八张 GAS 表的八个 `.bytes` 文件和 `manifest.json`。
-默认运行时还需部署匹配的 `manifest.json`；关闭 feature 的最小运行时只需部署八个 `.bytes` 文件。
+导表产物包含上述七张 GAS 表的七个 `.bytes` 文件和 `manifest.json`。
+默认运行时还需部署匹配的 `manifest.json`；关闭 feature 的最小运行时只需部署七个 `.bytes` 文件。
 `src/config.rs` 通过外部路径加载 `config/generated/mod.rs`，公开为
 `bevy_gas_template::config::generated`；生成目录不维护独立 Cargo 包。
 
 加载与预览分属 `loading` 和 `inspection`：前者负责读包解码，后者仅在 `config-validation`
 启用时执行完整校验和文本报告。`ConfigError`、`ConfigErrorKind`、`ConfigLocation`
 由配置领域共用的 `error` 模块拥有。编译器按准备、注册、效果、目标、技能时间线拆分：
-`PreparedTables` 借用生成行，统一解析实际使用的动作和幅度参数，根据父表 ID 列表建立
-技能动作、效果修改器和额外成本的有序索引；编译、完整校验和预览共用这一视图，
-不重复扫描和解释同一关系。
-生成 DTO 与运行时类型仍然分离，feature 行为与配置协议保持不变。
+`PreparedTables` 借用生成行，统一解析实际使用的动作、幅度参数和内联额外消耗，按父表 ID
+列表建立技能动作、效果修改器的有序索引，并保留额外消耗列表的原始顺序。编译、完整校验
+和预览共用这一视图，不重复扫描和解释同一关系。
+生成 DTO 与运行时类型仍然分离，feature 行为保持不变；本次额外消耗内联改变配置二进制结构。
 目标编译器构造本包 `gameplay::targeting::TargetingDefinition`，技能和效果仍构造 `bevy_gas` 类型。
 两类定义分别由 CompiledAbility 持有，GAS 技能定义不反向包含游戏索敌规则。文件归属见
 [01 — 配置所有权与扩展](./01-configuration.md)。
@@ -118,8 +118,7 @@ Luban 的结构校验和 Rust 的玩法校验是连续两层，不能互相替�
 | gas.TbAttribute     | name | 属性名、Hot/Cold 区域及说明                           |
 | gas.TbEffect        | id   | 持续、周期、概率、asset/granted 标签、modifier_ids    |
 | gas.TbModifier      | id   | 属性、操作、Flat/LinearLevel 参数                    |
-| gas.TbAbility       | id   | 等级、标签、消耗、冷却、目标规则、实例策略、task_ids、additional_cost_ids |
-| gas.TbAbilityAdditionalCost | id | resource、amount，定义一项可引用的额外消耗 |
+| gas.TbAbility       | id   | 等级、标签、消耗、冷却、目标规则、实例策略、task_ids、additional_costs 内联列表 |
 | gas.TbAbilityTask   | id   | at_tick、动作、目标范围、effect_id                   |
 | gas.TbTargeting     | id   | 选择、标签/距离过滤、排序与数量上限                   |
 
@@ -127,24 +126,27 @@ Luban 的结构校验和 Rust 的玩法校验是连续两层，不能互相替�
 生成的 `config::generated::gas::AbilityTask` 表示一行配置，每行描述一个动作，由编译器按 tick 分组并合并为任务定义。
 它与运行时的 `AbilityTask` Component 分属配置数据和 ECS 任务状态两个层次。
 
-技能通过 `task_ids`、`additional_cost_ids` 引用动作和额外消耗，效果通过 `modifier_ids`
-引用修改器。三个字段均为分号分隔的有序 ID 列表，留空表示没有对应项；子表不保存父 ID 或
-`order`。同一父列表内禁止重复 ID，并检查每个引用存在；不同技能或效果可以引用同一行。
-共享的是配置定义，每次技能激活和效果应用仍创建各自的 ECS 运行状态。修改共享行会影响
-重新编译后所有引用它的技能或效果，因此改变单个父定义时应新建子行并调整该父列表。
+技能通过 `task_ids` 引用动作，效果通过 `modifier_ids` 引用修改器。这两个字段仍是分号
+分隔的有序 ID 列表，留空表示没有对应项；子表不保存父 ID 或 `order`。同一父列表内禁止
+重复 ID，并检查每个引用存在；不同技能或效果可以引用同一行。共享的是配置定义，每次
+激活或应用仍创建自己的运行状态。改变单个父定义时，应新建子行并调整该父列表。
 
-未引用的子定义允许保留为配置素材；完整业务校验仍检查它们自身的字段、引用与数值合法性。
-依赖父技能等级、成本用途、结束动作位置或资源累计数量的约束按实际引用关系检查。
-三个列表的引用检查和重复 ID 检查在最小构建中也执行，不依赖 Excel 的物理行顺序。
+技能 `additional_costs` 则是内联 `gas.AbilityAdditionalCost` Bean 列表，每项包含整数资源 ID resource
+和 amount，没有独立成本行 ID，也不引用额外消耗子表。列表顺序及重复项原样保留，各技能拥有自己的
+配置值；不会因为两个技能填写相同内容而建立可联动修改的共享成本定义。
 
-表名、主键、输入文件和枚举统一维护在 `config/defines/gas.xml`。
+未引用的动作和修改器仍可保留为配置素材；完整业务校验检查其字段、引用与数值合法性。
+依赖父技能等级、成本用途和结束动作位置的约束按实际引用关系检查。task_ids/modifier_ids
+的引用与重复 ID 检查在最小构建中仍执行；内联成本按每个技能分别检查同资源累计数量。
+
+表名、主键、输入文件、枚举和内联 `AbilityAdditionalCost` Bean 统一维护在 `config/defines/gas.xml`。
 表字段仍从数据 Excel 表头读取；因此修改技能数值只改数据表，新增字段修改相应表头，
 新增表或枚举修改 XML 定义。新增数据文件的路径相对于 `config/tables/`。
 无需额外维护定义 Excel；未独立定义的行 Bean 由 Luban 根据表头生成。
 
 第一行 `##var` 为字段名，`##type` 为类型，`##` 为说明；数据行 A 列留空。
 普通整数、浮点和布尔值使用 Excel 原生值。可空字段留空，不填字符串 null；
-集合使用表头指定的分号分隔，不自行更换分隔符。
+集合与内联 Bean 使用各自表头和 Schema 指定的结构，不将自定义字符串解析规则混入配置编译器。
 
 示例类型：
 
@@ -152,7 +154,7 @@ Luban 的结构校验和 Rust 的玩法校验是连续两层，不能互相替�
 - 可选效果引用：`int?#ref=gas.TbEffect`。
 - 标签列表：`(list#sep=;),(string#ref=gas.TbTag)`。
 - 技能动作列表：`(list#sep=;),(int#ref=gas.TbAbilityTask)`。
-- 技能额外消耗列表：`(list#sep=;),(int#ref=gas.TbAbilityAdditionalCost)`。
+- 技能额外消耗列表：`(list#sep=;),gas.AbilityAdditionalCost`；每个 Bean 内部按逗号分隔 resource、amount，详见下文。
 - 效果修改器列表：`(list#sep=;),(int#ref=gas.TbModifier)`。
 - 属性引用：`string#ref=gas.TbAttribute`。
 
@@ -187,11 +189,10 @@ DurationTicks 必须提供正整数持续时间，Infinite 不填写 duration_ti
 period_ticks 留空表示无周期，有值时必须为正；execute_on_applied 只用于周期效果。
 
 成本必须 Instant、Add、概率 1、非周期，每个属性只能有一条修改器，且全等级成本为负。
-不消耗属性资源使用空 cost_effect_id。背包等额外消耗填写 `gas.TbAbilityAdditionalCost`，
-再由技能 `additional_cost_ids` 引用；编译器按该列表构造 `AdditionalCost` 并写入技能定义，
-见下方 Additional Costs 表配置。
+不消耗属性资源使用空 cost_effect_id。背包等额外消耗直接填写技能的 `additional_costs`
+内联列表；编译器按列表顺序构造 GAS `AdditionalCost`，见下方技能内联额外消耗。
 `cost_effect_id` 只表示属性 Effect 成本，不能把物品 ID 填入该列；两类成本可以同时使用。
-技能表中两个成本字段相邻，列顺序为 `cost_effect_id`、`additional_cost_ids`、`cooldown_effect_id`。
+技能表中两个成本字段相邻，列顺序为 `cost_effect_id`、`additional_costs`、`cooldown_effect_id`。
 
 冷却必须正持续时间、非空 granted tags、概率 1、
 无周期且无属性修改器。冷却检查使用 granted tags，不使用 asset tags。
@@ -223,39 +224,61 @@ ApplyEffect 的 Primary/AllCaptured 分别使用激活时捕获的主目标/全�
 真实弹体可由游戏层通过现有 EmitEvent、游戏索敌和 GAS 统一效果队列扩展。
 当前点索敌不代表碰撞命中；空间与未来命中规则的职责见 [05 — 空间索敌](05-spatial-targeting.md)。
 
-## Additional Costs 表配置
+## 技能内联额外消耗
 
-在 `config/tables/gas.ability_additional_cost.xlsx` 中配置一行外部资源需求，
-表登记为 `gas.TbAbilityAdditionalCost`，然后在技能表的 `additional_cost_ids` 中引用该行 ID。
-无需为没有额外消耗的技能填写占位行，父列表留空即可。
+在 `config/tables/gas.ability.xlsx` 的 `additional_costs` 字段直接填写有类型的成本列表。
+元素是 XML Schema 定义的 `gas.AbilityAdditionalCost` Bean，没有独立成本行 id；不再维护独立成本表、
+成本行引用或占位行。空列表表示没有额外消耗。
 
-| 字段 | 类型与约束 | 含义 |
+技能表当前 F 列的 `##var` 为 `additional_costs`，`##type` 为
+`(list#sep=;),gas.AbilityAdditionalCost`。XML Bean 使用 `valueType="1"`、`sep=","`：
+列表用英文分号 `;` 分项，每项按英文逗号 `,` 分成 resource、amount 两个字段。
+这是 Luban 的容器与 Bean 组合 sep 规则，由生成器读取为 `Vec<AbilityAdditionalCost>`。
+参见 [Luban 官方 sep 与流式填法](https://www.datable.cn/docs/excel/vertical-and-sep)。
+
+| 单元格内容 | 含义 |
+| --- | --- |
+| 留空 | 空列表，无额外消耗 |
+| `5001,1` | 消耗 1 个资源 5001（示例 Bomb） |
+| `5001,1;5002,3` | 依次定义 Bomb 1、Ammo 3 两项成本，示例 Ammo ID 为 5002 |
+| `5001,1;5001,1` | 保留两项资源 5001 的成本，整批需要 2 个 |
+
+每个非空列表项必须完整提供整数资源 ID 和数量。XML 的 resource 类型为 `int`，生成为 Rust
+`i32`，允许完整范围 `-2147483648..=2147483647`，不额外禁止负数或 0。ID 是否对应游戏中的
+有效资源由 Provider 判断。amount 仍为 `long#range=[1,4294967295]`；源表数量校验与 Rust
+编译器的必需检查同时保留，不能只依赖 Excel 导表校验。资源不再执行字符串名称格式校验。
+
+| Bean 字段 | 类型与约束 | 含义 |
 | ---- | ---------- | ---- |
-| `id` | `int`，主键唯一 | 消耗配置行 ID |
-| `resource` | 非空资源名称，如 `Inventory.Bomb` | 游戏 Provider 识别的稳定名称，不是 GameplayTag |
-| `amount` | `long`，范围 `1..=4294967295` | 固定消耗数量，编译时安全转换为运行时 `u32` |
+| `resource` | Luban `int` / Rust `i32`，允许完整有符号范围 | 游戏资源 ID，如 5001；不是 GameplayTag 或名称池内部索引 |
+| `amount` | `long`，范围 `1..=4294967295` | 固定整数数量，编译时安全转换为运行时 `u32` |
 
-样例行：
+技能 1002（InventoryBomb）内联一项 resource 为 `5001`、amount 为 1 的成本，
+同时通过 `cost_effect_id=2001` 消耗 20 Mana，无冷却，启动时仅执行 EndAbility。
+这个样例验证支付流程，不生成弹体。
 
-| id | resource | amount |
-| -- | -------- | ------ |
-| 10021 | Inventory.Bomb | 1 |
+同技能有多种成本时追加列表项，按填写顺序传给 Provider。相同资源和完全相同的项都允许
+重复，编译器保留每项，不自动合并、排序或去重；Provider 必须对整批成本累计检查。
+编译器提前拒绝每个技能同资源合计超过 `u32::MAX` 的配置，累计不跨技能进行。
+不同技能填写相同值仍是独立配置副本，修改一处不会修改其他技能。当前配置数量固定，
+不随等级变化；游戏 Provider 仍可通过现有 context 使用自己的规则。
 
-技能 1002（InventoryBomb）填写 `additional_cost_ids=10021`，还通过 `cost_effect_id=2001` 消耗 20 Mana，无冷却，
-启动时仅执行 EndAbility。这个样例验证支付流程，不生成弹体。
-同技能有多种成本时添加多行，并按扣费定义顺序填入 `additional_cost_ids`。
-同一列表不得重复引用同一 ID，但可以引用 resource 相同、ID 不同的多行；它们保留为独立成本，
-Provider 必须整批合计检查。配置编译器按每个技能实际引用的行提前拒绝同资源合计超出 `u32`
-的配置。多个技能可以共享同一成本行，累计数量仍分别计算。当前数量固定，不随技能等级变化。
+必需检查在最小构建中也执行：每项数量处于正整数范围，每技能同资源 ID 的数量用 checked
+加法累计并拒绝溢出。默认和最小构建都不额外限制资源 ID 的正负。编译错误定位包含 Ability
+表、技能 ID 和从 0 起的列表位置，例如数量错误的 `additional_costs[1].amount`；累计溢出
+定位到触发溢出的项。资源 ID 不再经过注册，因此不会产生资源名称注册错误。
 
-必需检查在最小构建中也执行：列表引用存在且 ID 不重复、数量在范围内、资源名非空白、
-每个技能同资源数量合计不溢出。完整 `config-validation` 还校验资源名为
-点分的 ASCII 字母、数字或下划线段，包括未引用的成本行。失败报告包含表名、配置行 ID 和字段。
+GAS `AdditionalCost` 的 resource 本身就是 i32。模板按原列表顺序将表内 ID 直接传给
+`AdditionalCost::new(resource, amount)`，`resource()` 和资源相关错误字段也直接使用该整数。
+编译器中的 `resources` 映射已删除，无需把 ID 转成字符串或 `UniqueName`。
+准备阶段保留的 `totals: BTreeMap<i32, u32>` 只用于启动时校验单个技能同 ID 数量累计是否溢出，
+不参与资源注册，也不用于重排、合并或构造输出列表。标签和属性仍通过 `UniqueNamePool`
+及各自管理器注册，原有快照构建与失败原子性保持不变。
 
-编译器在现有 `UniqueNamePool` 的私有快照内按名称顺序注册资源键，全部构建成功后才发布。
-失败不会留下部分注册项。游戏 Provider 使用同一个 World 的名称池解析相同名称，例如
-`new_name("Inventory.Bomb")`，映射到自己的物品 ID 或背包数据；不要保存名称池的数字索引到表中。
-表格不创建背包，也不自动安装 Provider；名称格式校验不代表游戏存在对应道具，未知资源仍由 Provider 拒绝。运行时仍需：
+游戏 Provider 直接匹配 5001 等整数 ID，或用它查询自己的资源字典，不需要名称池和资源键缓存。
+表格不创建背包，也不自动安装 Provider；整数 ID 的类型合法不代表游戏存在对应道具，
+未知资源仍由 Provider 拒绝。
+使用基础启动器时，将 main 中的 `SimulationPlugin::new(settings)` 替换为：
 
 ```rust
 SimulationPlugin::new(settings).with_additional_costs::<InventoryCosts>()
@@ -274,35 +297,67 @@ SimulationPlugin::new(settings).with_additional_costs::<InventoryCosts>()
 ```powershell
 pwsh -NoProfile -File config/export.ps1
 cargo run --features config-validation --bin gas-config -- inspect assets/config 1002
-cargo test --test config_test configured_costs_reach_the_inventory_provider_when_the_granted_ability_activates
+cargo test --test config_test configured_duplicate_costs_reach_the_inventory_provider_without_deduplication
 ```
 
 配置 CLI 可预览技能 1002。`examples/configured_game/` 演示技能 1001，尚未安装背包 Provider，
 因此不会直接运行 InventoryBomb。上面的集成测试使用游戏自己的生成类型与编译器，
-验证配置的整批额外消耗确实交给 Provider 检查、扣减和补偿；接入背包玩法时在游戏中实现并安装 Provider。
+验证配置的整批额外消耗确实交给 Provider 检查、扣减，并在余额不足时拒绝支付；
+失败后的补偿行为由 [GAS 额外消耗测试](../../bevy_gas/tests/gas_test/abilities_test/additional_cost_test.rs)
+覆盖。接入背包玩法时在游戏中实现并安装 Provider。
 
-新增表改变生成的表集合和包 schema：旧配置包必须重新导出，并与新生成的 Rust 模块一起
-部署。即使项目不使用额外消耗，也需部署导出的空 `gas_tbabilityadditionalcost.bytes`；
-旧的七表包不能直接由新版本读取。无需额外添加物品表或把资源登记为 GAS 标签。
+额外消耗内联后只导出七张表，成本跟随 `gas_tbability.bytes`，不再生成或要求
+`gas_tbabilityadditionalcost.bytes`。表集合与 Ability 字段布局均已改变，旧二进制包不能
+与新生成的 Rust 模块混用，关闭 manifest 校验也不提供兼容转换。必须完整重新导表并配套
+部署生成代码、七个 `.bytes` 和 manifest，不能只重写 manifest。无需新增物品表或 GAS 标签。
 
-## 从子表反向关联迁移
+## 配置迁移
 
-本次调整改变字段归属和二进制结构；不能将旧 `.bytes` 配合新生成的 Rust 模块使用。
-迁移自己的数据时：
+### 从资源名称迁移为整数 ID
 
-1. 按旧 Task 的 `ability_id` 分组，按 `(at_tick, order)` 排序，将 ID 写入对应技能的 `task_ids`。
-   删除 Task 表的 `ability_id`、`order` 列，保留 `at_tick` 与动作载荷。
-2. 按旧 AdditionalCost 的 `ability_id` 分组，按 `order` 排序，将 ID 写入技能的
-   `additional_cost_ids`；删除成本表的 `ability_id`、`order` 列。
-3. 按旧 Modifier 的 `effect_id` 分组，按 `order` 排序，将 ID 写入效果的 `modifier_ids`；
-   删除修改器表的 `effect_id`、`order` 列。Task 动作载荷中的 `effect_id` 仍然表示待应用效果，保留不变。
-4. 三个父列表都使用分号分隔，清理重复 ID 和缺失引用；原有合法顺序、EndAbility 位置及
-   每技能同资源累计数量保持不变。不自动按子行内容合并 ID，后续可由策划显式选择共享定义。
-5. 运行 `pwsh -NoProfile -File config/export.ps1`，通过完整业务校验后，配套部署本次生成的
-   Rust 模块、八张表的 `.bytes` 和 `manifest.json`。已有旧包需要重新导出，不能仅更新清单。
+1. 先在游戏内确定原资源名称到 i32 ID 的映射，例如 `Inventory.Bomb` → 5001、
+   `Inventory.Ammo` → 5002；这些数字只是本模板示例，不是 GAS 预定义枚举。
+2. 将每项 resource 替换为映射后的整数，保持列表顺序、重复项和 amount。若多个旧名称
+   被映射到同一个 ID，应重新核对合计数量，因为它们现在属于同一种资源。
+3. 同步 Provider 的资源字典、匹配逻辑和错误字段，直接使用同一组 i32 ID；移除额外成本
+   的名称池注册、转换及键缓存。库存按整数 ID 查询，列表顺序与重复项仍原样交给 Provider。
+4. 运行 `config/export.ps1` 完整重新导表，配套更新生成 Rust、全部 bytes 和 manifest。
+   旧字符串 resource 的二进制布局不兼容新的 i32 字段，不能仅替换 manifest；关闭清单校验
+   也不提供旧包兼容。数量、整批检查、扣减和补偿协议保持不变。
 
-迁移后维护技能或效果组成时只修改父表列表；调整物理行顺序不影响玩法顺序，修改列表顺序
-会改变同 tick 动作、成本或修改器的执行定义顺序。
+若配置已采用 resource:int，本次仅将 GAS 运行时资源字段统一为 i32，不改变 Excel、Schema
+或生成二进制布局；无需为此再次改表或重新导表。更新 GAS 依赖与 Provider 代码后重新编译即可。
+
+### 从独立成本表迁移为技能内联列表
+
+1. 对每个技能，按旧 `additional_cost_ids` 的列表顺序查找成本行，将每行的 resource、amount
+   展开到该技能的 `additional_costs`，原字符串 resource 按上面的游戏映射转成整数。
+   不复制成本行 id，不按资源 ID 重排列表，也不合并重复项。
+2. 原先共享同一成本行的多个技能各自得到一份内联值；迁移后它们独立修改。迁移时应确认
+   展开后的顺序、数量和每技能同资源合计与旧配置一致。
+3. 删除技能表的 `additional_cost_ids` 列，移除独立 `TbAbilityAdditionalCost` 表登记及
+   `config/tables/gas.ability_additional_cost.xlsx`。在 XML 中保留同名 `AbilityAdditionalCost`
+   作为只有 resource:int、amount:long 的 Bean，供技能内联列表使用。
+4. `task_ids`、`modifier_ids` 及动作/修改器子表保持原有引用和顺序规则，不随成本内联调整。
+5. 运行 `pwsh -NoProfile -File config/export.ps1`，由生成器重新导出 Rust 模块和七表配置包。
+   旧的独立成本 bytes 不再部署；新生成代码、全部 `.bytes` 和 `manifest.json` 必须来自同次导表。
+   旧包不能只换清单，迁移后继续验证预览、最小构建和 Provider 实际支付。
+
+### 更早的子表反向关联布局
+
+如果来源版本仍在子表记录父 ID 和 order，可直接迁移到当前布局：
+
+1. 旧 Task 按 ability_id 分组、按 `(at_tick, order)` 排序，将 ID 写入技能 task_ids；删除
+   Task 的 ability_id、order，保留 at_tick 与动作载荷。
+2. 旧 AdditionalCost 按 ability_id 分组、按 order 排序，将 resource、amount 直接写入
+   技能 additional_costs，资源名称按游戏映射转成整数；无需先生成成本 ID 列表，随后移除独立成本表。
+3. 旧 Modifier 按 effect_id 分组、按 order 排序，将 ID 写入效果 modifier_ids；删除
+   Modifier 的 effect_id、order。Task 动作中的 effect_id 仍表示待应用效果，保持不变。
+4. task_ids/modifier_ids 仍使用分号分隔，清理重复 ID 和缺失引用；内联成本保留重复项。
+   原有合法顺序、EndAbility 位置和每技能同资源合计保持不变，再完成上述全量导表与验证。
+
+调整 Excel 物理行顺序不改变列表中的玩法顺序；修改列表顺序则改变同 tick 动作、
+成本或修改器的定义顺序。动作/修改器仍可共享配置行，额外成本由各技能独立拥有。
 
 ## 加载、注册与授予
 
@@ -421,7 +476,7 @@ cargo build
 根目录 `target/` 是可删除的构建缓存，后续 Cargo 命令会重新创建。
 
 额外消耗配置回归测试位于 `tests/config_test/additional_cost_test.rs`，覆盖生成数据解码、
-父列表顺序和资源身份、共享成本与每技能累计数量、非法配置、注册原子性，以及配置技能
+内联列表顺序、重复项和整数资源身份、每技能独立累计数量、下标错误定位、非法配置、失败时状态保持，以及配置技能
 通过游戏 Provider 实际支付。
 
 有关工具安装和 MCP 的细节见 [02 — Luban 工具链](./02-luban-toolchain.md)。
@@ -429,7 +484,7 @@ cargo build
 配置编译回归测试位于 `tests/config_test/compilation_test.rs`：覆盖已初始化注册表冲突后的
 资源保持与重试、后期构建失败不影响已有 catalog、缺失 Resource 分类，以及输入行序变化时
 编译任务与预览时间线顺序一致，并验证显式 EndAbility 约束。
-父列表引用回归测试位于 `tests/config_test/references_test.rs`：覆盖三个列表的重复与缺失引用、
+父列表引用回归测试位于 `tests/config_test/references_test.rs`：覆盖 task_ids/modifier_ids 的重复与缺失引用、
 共享修改器的独立顺序、新二进制字段布局，以及未引用定义的完整业务校验。
 最小构建和默认构建均需执行这些外部行为测试。
 

@@ -48,7 +48,7 @@ pub(super) fn tables(unused_radius: Option<f32>) -> Tables {
             targeting_id: 1,
             allow_multiple_instances: false,
             task_ids: vec![1],
-            additional_cost_ids: vec![],
+            additional_costs: vec![],
         }])
         .unwrap(),
     );

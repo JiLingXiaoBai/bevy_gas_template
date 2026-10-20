@@ -5,13 +5,11 @@ use bevy_gas::{
     AbilityActivationCheckError, AbilityActivationCheckParams, AbilityActivationContext,
     AbilityActivationError, AbilityCommitError, AdditionalCost, AdditionalCostContext,
     AdditionalCostError, AdditionalCostProvider, GameplayAbilitySystemBundle,
-    GameplayAbilitySystemPlugin, GameplayExecutionError, GameplayExecutionOutcome,
-    GameplayExecutionQueue, GameplayExecutionResult, UniqueName, UniqueNamePool,
-    can_activate_ability,
+    GameplayExecutionError, GameplayExecutionOutcome, GameplayExecutionQueue,
+    GameplayExecutionResult, UniqueNamePool, can_activate_ability,
 };
-use bevy_gas_template::config::generated::gas::{
-    AbilityAdditionalCost, TbAbility, TbAbilityAdditionalCost, TbTargeting,
-};
+use bevy_gas_template::application::SimulationPlugin;
+use bevy_gas_template::config::generated::gas::{AbilityAdditionalCost, TbAbility, TbTargeting};
 use bevy_gas_template::config::generated::{ByteBuf, Tables};
 use bevy_gas_template::config::{
     AbilityId, ConfigErrorKind, ConfigLocation, ConfiguredAbilities, GameplayCatalog,
@@ -21,77 +19,87 @@ use bevy_gas_template::config::{
 use bevy_gas_template::config::{describe_ability, describe_ability_at_level, validate_tables};
 use std::sync::Arc;
 
-fn location(row: &str, field: &str) -> ConfigLocation {
+fn location(row: &str, index: usize, field: &str) -> ConfigLocation {
     ConfigLocation::Table {
-        table: "AbilityAdditionalCost",
+        table: "Ability",
         row: Some(row.to_owned()),
-        field: Some(field.to_owned()),
+        field: Some(format!("additional_costs[{index}].{field}")),
     }
 }
 
-fn cost(id: i32, resource: &str, amount: i64) -> AbilityAdditionalCost {
-    AbilityAdditionalCost {
-        id,
-        resource: resource.to_owned(),
-        amount,
-    }
+fn cost(resource: i32, amount: i64) -> AbilityAdditionalCost {
+    AbilityAdditionalCost { resource, amount }
 }
 
 fn tables(rows: Vec<AbilityAdditionalCost>) -> Tables {
-    let mut ids: Vec<_> = rows.iter().map(|row| row.id).collect();
-    ids.sort_unstable();
-    tables_with_ids(rows, ids)
-}
-
-fn tables_with_ids(rows: Vec<AbilityAdditionalCost>, ids: Vec<i32>) -> Tables {
     let mut tables = base_tables(None);
     let mut ability = tables.tb_ability.get(&1).unwrap().as_ref().clone();
-    ability.additional_cost_ids = ids;
+    ability.additional_costs = rows;
     tables.tb_ability = Arc::new(TbAbility::from_rows(vec![ability]).unwrap());
-    tables.tb_ability_additional_cost = Arc::new(TbAbilityAdditionalCost::from_rows(rows).unwrap());
     tables
 }
 
 #[test]
-fn generated_cost_table_decodes_long_amount_and_compiles_the_requirement() {
-    // One row: id 7, Inventory.Bomb, and the largest u32 amount.
-    let mut bytes = vec![1, 7, 14];
-    bytes.extend_from_slice(b"Inventory.Bomb");
+fn generated_ability_decodes_nested_integer_resource_ids_and_long_amounts() {
+    // One ability, with four nested costs covering the full signed resource-ID range.
+    let mut bytes = vec![1, 1, 1, b'A', 2, 0, 4];
+    // i32::MIN costs one unit, -1 costs two units, and 0 costs three units.
+    bytes.extend_from_slice(&[0xf0, 0x80, 0, 0, 0, 1]);
+    bytes.extend_from_slice(&[0xf0, 0xff, 0xff, 0xff, 0xff, 2]);
+    bytes.extend_from_slice(&[0, 3]);
+    // i32::MAX costs u32::MAX units; the resource uses int and the amount uses long.
+    bytes.extend_from_slice(&[0xf0, 0x7f, 0xff, 0xff, 0xff]);
     bytes.extend_from_slice(&[0xf0, 0xff, 0xff, 0xff, 0xff]);
-    let decoded = Tables::new(|name| {
-        Ok(ByteBuf::new(if name == "gas_tbabilityadditionalcost" {
-            bytes.clone()
-        } else {
-            vec![0]
-        }))
-    })
-    .unwrap();
-    let row = decoded.tb_ability_additional_cost.get(&7).unwrap();
-    assert_eq!(row.resource, "Inventory.Bomb");
-    assert_eq!(row.amount, i64::from(u32::MAX));
+    // No cooldown or tags; self targeting and one terminal task.
+    let suffix = [0, 0, 0, 0, 0, 0, 1, 0, 1, 1];
+    bytes.extend_from_slice(&suffix);
+    let mut empty = vec![1, 1, 1, b'A', 2, 0, 0];
+    empty.extend_from_slice(&suffix);
 
-    let mut tables = tables_with_ids(vec![], vec![7]);
-    tables.tb_ability_additional_cost = decoded.tb_ability_additional_cost;
-    let mut app = app();
-    let catalog = compile_catalog(&tables, app.world_mut()).unwrap();
-    let requirements = catalog
-        .ability(AbilityId(1))
-        .unwrap()
-        .definition()
-        .get_additional_costs();
-    assert_eq!(requirements.len(), 1);
-    assert_eq!(requirements[0].amount(), u32::MAX);
-    assert_eq!(
-        app.world()
-            .resource::<UniqueNamePool>()
-            .get_display_str(&requirements[0].resource()),
-        "Inventory.Bomb"
-    );
+    for (encoded, expected) in [
+        (&empty, vec![]),
+        (
+            &bytes,
+            vec![(i32::MIN, 1), (-1, 2), (0, 3), (i32::MAX, u32::MAX)],
+        ),
+    ] {
+        let decoded = Tables::new(|name| {
+            Ok(ByteBuf::new(if name == "gas_tbability" {
+                encoded.clone()
+            } else {
+                vec![0]
+            }))
+        })
+        .unwrap();
+        let ability = decoded.tb_ability.get(&1).unwrap();
+        assert_eq!(ability.additional_costs.len(), expected.len());
+        for (row, &(resource, amount)) in ability.additional_costs.iter().zip(&expected) {
+            assert_eq!(row.resource, resource);
+            assert_eq!(row.amount, i64::from(amount));
+        }
+        let mut tables = base_tables(None);
+        tables.tb_ability = decoded.tb_ability;
+        let mut app = app();
+        let catalog = compile_catalog(&tables, app.world_mut()).unwrap();
+        let requirements = catalog
+            .ability(AbilityId(1))
+            .unwrap()
+            .definition()
+            .get_additional_costs();
+        assert_eq!(requirements.len(), expected.len());
+        for (requirement, &(resource, amount)) in requirements.iter().zip(&expected) {
+            assert_eq!(requirement.resource(), resource);
+            assert_eq!(requirement.amount(), amount);
+        }
+    }
 
-    for malformed in [bytes[..bytes.len() - 1].to_vec(), [bytes, vec![0]].concat()] {
+    for malformed in (0..bytes.len())
+        .map(|length| bytes[..length].to_vec())
+        .chain([[bytes.clone(), vec![0]].concat()])
+    {
         assert!(
             Tables::new(|name| {
-                Ok(ByteBuf::new(if name == "gas_tbabilityadditionalcost" {
+                Ok(ByteBuf::new(if name == "gas_tbability" {
                     malformed.clone()
                 } else {
                     vec![0]
@@ -103,24 +111,28 @@ fn generated_cost_table_decodes_long_amount_and_compiles_the_requirement() {
 }
 
 #[test]
-fn cost_order_and_name_registration_are_independent_of_input_row_order() {
-    let rows = vec![
-        cost(1, "Inventory.Ammo", 1),
-        cost(2, "Inventory.ZBomb", 2),
-        cost(3, "Inventory.ZBomb", 3),
-    ];
+fn integer_resources_and_cost_order_are_independent_of_ability_rows_and_name_pools() {
+    let mut tables = tables(vec![cost(10, 3), cost(10, 2), cost(2, 1)]);
+    let first = tables.tb_ability.get(&1).unwrap().as_ref().clone();
+    let mut second = first.clone();
+    second.id = 2;
+    second.additional_costs = vec![cost(-7, 4)];
     let mut compiled = Vec::new();
-    for reverse in [false, true] {
+    for (reverse, extra_names) in [(false, 0), (false, 3), (true, 0), (true, 3)] {
         let mut app = app();
+        for index in 0..extra_names {
+            app.world_mut()
+                .resource_mut::<UniqueNamePool>()
+                .new_name(&format!("Unrelated{index}"))
+                .unwrap();
+        }
         let mut expected_names = app.world().resource::<UniqueNamePool>().clone();
-        let ammo = expected_names.new_name("Inventory.Ammo").unwrap();
-        let bomb = expected_names.new_name("Inventory.ZBomb").unwrap();
-        let mut rows = rows.clone();
+        let mut rows = vec![first.clone(), second.clone()];
         if reverse {
             rows.reverse();
         }
-        let catalog =
-            compile_catalog(&tables_with_ids(rows, vec![3, 2, 1]), app.world_mut()).unwrap();
+        tables.tb_ability = Arc::new(TbAbility::from_rows(rows).unwrap());
+        let catalog = compile_catalog(&tables, app.world_mut()).unwrap();
         let requirements = catalog
             .ability(AbilityId(1))
             .unwrap()
@@ -129,50 +141,62 @@ fn cost_order_and_name_registration_are_independent_of_input_row_order() {
         assert_eq!(
             requirements,
             [
-                AdditionalCost::new(bomb, 3).unwrap(),
-                AdditionalCost::new(bomb, 2).unwrap(),
-                AdditionalCost::new(ammo, 1).unwrap(),
+                AdditionalCost::new(10, 3).unwrap(),
+                AdditionalCost::new(10, 2).unwrap(),
+                AdditionalCost::new(2, 1).unwrap(),
             ]
+        );
+        assert_eq!(
+            catalog
+                .ability(AbilityId(2))
+                .unwrap()
+                .definition()
+                .get_additional_costs(),
+            [AdditionalCost::new(-7, 4).unwrap()]
+        );
+        // The fixture has no tags or attributes, so costs must not add pool entries.
+        assert_eq!(
+            app.world_mut()
+                .resource_mut::<UniqueNamePool>()
+                .new_name("AfterCompilation")
+                .unwrap(),
+            expected_names.new_name("AfterCompilation").unwrap()
         );
         compiled.push(requirements.to_vec());
     }
-    assert_eq!(compiled[0], compiled[1]);
+    assert!(compiled.windows(2).all(|pair| pair[0] == pair[1]));
 }
 
 #[test]
 fn malformed_costs_are_rejected_with_field_locations_in_every_feature_mode() {
     let mut cases = Vec::new();
     for amount in [i64::MIN, -1, 0, i64::from(u32::MAX) + 1, i64::MAX] {
-        cases.push((vec![cost(1, "Inventory.Bomb", amount)], "1", "amount"));
-    }
-    for resource in ["", " \t\n"] {
-        cases.push((vec![cost(1, resource, 1)], "1", "resource"));
+        cases.push((vec![cost(5001, amount)], 0, "amount"));
     }
     cases.push((
-        vec![
-            cost(1, "Inventory.Bomb", i64::from(u32::MAX)),
-            cost(2, "Inventory.Bomb", 1),
-        ],
-        "2",
+        vec![cost(5001, i64::from(u32::MAX)), cost(5001, 1)],
+        1,
         "amount",
     ));
-    for (rows, row, field) in cases {
-        let error = compile_catalog(&tables(rows), app().world_mut())
-            .err()
-            .unwrap();
+    for (rows, index, field) in cases {
+        let mut tables = tables(rows);
+        let mut ability = tables.tb_ability.get(&1).unwrap().as_ref().clone();
+        ability.id = 7;
+        tables.tb_ability = Arc::new(TbAbility::from_rows(vec![ability]).unwrap());
+        let error = compile_catalog(&tables, app().world_mut()).err().unwrap();
         assert_eq!(error.kind(), ConfigErrorKind::InvalidValue);
-        assert_eq!(error.location(), &location(row, field));
+        assert_eq!(error.location(), &location("7", index, field));
     }
 }
 
 #[test]
-fn failed_compilation_does_not_publish_resource_names_or_replace_the_catalog() {
+fn failed_compilation_preserves_name_pool_and_existing_catalog() {
     let mut app = app();
     let original = compile_catalog(&base_tables(None), app.world_mut()).unwrap();
     let original_ability = Arc::clone(original.ability(AbilityId(1)).unwrap().definition());
     app.world_mut().insert_resource(original);
     let names_before = app.world().resource::<UniqueNamePool>().clone();
-    let mut invalid = tables(vec![cost(1, "Inventory.Bomb", 1)]);
+    let mut invalid = tables(vec![cost(5001, 1)]);
     invalid.tb_targeting = Arc::new(TbTargeting::from_rows(vec![]).unwrap());
     assert!(compile_catalog(&invalid, app.world_mut()).is_err());
 
@@ -191,22 +215,19 @@ fn failed_compilation_does_not_publish_resource_names_or_replace_the_catalog() {
         &original_ability
     ));
 
-    let repaired =
-        compile_catalog(&tables(vec![cost(1, "Inventory.Bomb", 1)]), app.world_mut()).unwrap();
-    let mut expected_names = names_before;
-    let expected_bomb = expected_names.new_name("Inventory.Bomb").unwrap();
+    let repaired = compile_catalog(&tables(vec![cost(5001, 1)]), app.world_mut()).unwrap();
     assert_eq!(
         repaired
             .ability(AbilityId(1))
             .unwrap()
             .definition()
             .get_additional_costs(),
-        [AdditionalCost::new(expected_bomb, 1).unwrap()]
+        [AdditionalCost::new(5001, 1).unwrap()]
     );
 }
 
 #[test]
-fn abilities_without_cost_rows_keep_an_empty_requirement_list() {
+fn abilities_without_inline_costs_keep_an_empty_requirement_list() {
     let catalog = compile_catalog(&base_tables(None), app().world_mut()).unwrap();
     assert!(
         catalog
@@ -220,32 +241,17 @@ fn abilities_without_cost_rows_keep_an_empty_requirement_list() {
 
 #[cfg(feature = "config-validation")]
 #[test]
-fn authoring_validation_rejects_malformed_resource_names() {
-    for resource in [
-        "Inventory..Bomb",
-        ".Inventory",
-        "Inventory.",
-        "Inventory Bomb",
-        "背包.炸弹",
-    ] {
-        let error = validate_tables(&tables(vec![cost(1, resource, 1)])).unwrap_err();
-        assert_eq!(error.kind(), ConfigErrorKind::Validation);
-        assert_eq!(error.location(), &location("1", "resource"));
+fn authoring_validation_accepts_the_full_i32_resource_id_range() {
+    for resource in [i32::MIN, -1, 0, 1, i32::MAX] {
+        validate_tables(&tables(vec![cost(resource, 1)])).unwrap();
     }
 }
 
 #[cfg(feature = "config-validation")]
 #[test]
 fn inspection_displays_ordered_costs_with_constant_amounts_at_each_level() {
-    let rows = vec![cost(1, "Inventory.Bomb", 2), cost(2, "Inventory.Ammo", 3)];
-    let report =
-        describe_ability(&tables_with_ids(rows.clone(), vec![2, 1]), AbilityId(1)).unwrap();
-    let mut reversed = rows.clone();
-    reversed.reverse();
-    assert_eq!(
-        report,
-        describe_ability(&tables_with_ids(reversed, vec![2, 1]), AbilityId(1)).unwrap()
-    );
+    let rows = vec![cost(5002, 3), cost(5001, 2), cost(-1, 1)];
+    let report = describe_ability(&tables(rows.clone()), AbilityId(1)).unwrap();
     let cost_lines: Vec<_> = report
         .lines()
         .filter(|line| line.starts_with("Additional cost"))
@@ -253,12 +259,12 @@ fn inspection_displays_ordered_costs_with_constant_amounts_at_each_level() {
     assert_eq!(
         cost_lines,
         [
-            "Additional cost / order 0: resource=Inventory.Ammo, amount=3",
-            "Additional cost / order 1: resource=Inventory.Bomb, amount=2",
+            "Additional cost / order 0: resource=5002, amount=3",
+            "Additional cost / order 1: resource=5001, amount=2",
+            "Additional cost / order 2: resource=-1, amount=1",
         ]
     );
-    let level_two =
-        describe_ability_at_level(&tables_with_ids(rows, vec![2, 1]), AbilityId(1), 2).unwrap();
+    let level_two = describe_ability_at_level(&tables(rows), AbilityId(1), 2).unwrap();
     assert_eq!(
         cost_lines,
         level_two
@@ -270,7 +276,7 @@ fn inspection_displays_ordered_costs_with_constant_amounts_at_each_level() {
 
 #[derive(Component)]
 struct Inventory {
-    resource: UniqueName,
+    resource: i32,
     bombs: u32,
 }
 
@@ -352,25 +358,16 @@ impl AdditionalCostProvider for InventoryProvider<'static, 'static> {
 }
 
 #[test]
-fn configured_costs_reach_the_inventory_provider_when_the_granted_ability_activates() {
+fn configured_duplicate_costs_reach_the_inventory_provider_without_deduplication() {
     let mut app = App::new();
-    app.add_plugins(MinimalPlugins).add_plugins(
-        GameplayAbilitySystemPlugin::with_additional_costs::<InventoryProvider>(),
-    );
-    let mut tables = tables(vec![
-        cost(1, "Inventory.Bomb", 1),
-        cost(2, "Inventory.Bomb", 2),
-    ]);
+    app.add_plugins(MinimalPlugins)
+        .add_plugins(SimulationPlugin::default().with_additional_costs::<InventoryProvider>());
+    let mut tables = tables(vec![cost(5001, 1), cost(5001, 1), cost(5001, 1)]);
     let mut row = tables.tb_ability.get(&1).unwrap().as_ref().clone();
     row.allow_multiple_instances = true;
     tables.tb_ability = Arc::new(TbAbility::from_rows(vec![row]).unwrap());
     let catalog = compile_catalog(&tables, app.world_mut()).unwrap();
     let ability = Arc::clone(catalog.ability(AbilityId(1)).unwrap().definition());
-    let bomb = app
-        .world_mut()
-        .resource_mut::<UniqueNamePool>()
-        .new_name("Inventory.Bomb")
-        .unwrap();
     let mut bundle = GameplayAbilitySystemBundle::default();
     let mut bindings = ConfiguredAbilities::default();
     let handle = grant_ability(
@@ -387,7 +384,7 @@ fn configured_costs_reach_the_inventory_provider_when_the_granted_ability_activa
             bundle,
             bindings,
             Inventory {
-                resource: bomb,
+                resource: 5001,
                 bombs: 3,
             },
         ))
@@ -442,7 +439,7 @@ fn configured_costs_reach_the_inventory_provider_when_the_granted_ability_activa
                 handle,
                 error: AbilityCommitError::AdditionalCost(
                     AdditionalCostError::InsufficientResource {
-                        resource: bomb,
+                        resource: 5001,
                         required: 3,
                         available: 0,
                     }
@@ -460,7 +457,7 @@ fn configured_costs_reach_the_inventory_provider_when_the_granted_ability_activa
         ),
         Err(AbilityActivationCheckError::Cost(
             AbilityCommitError::AdditionalCost(AdditionalCostError::InsufficientResource {
-                resource: bomb,
+                resource: 5001,
                 required: 3,
                 available: 0
             })
@@ -470,7 +467,7 @@ fn configured_costs_reach_the_inventory_provider_when_the_granted_ability_activa
 
 #[test]
 fn resource_totals_and_order_positions_are_scoped_to_each_ability() {
-    let mut tables = tables(vec![cost(1, "Inventory.Bomb", i64::from(u32::MAX))]);
+    let mut tables = tables(vec![cost(5001, i64::from(u32::MAX))]);
     let first = tables.tb_ability.get(&1).unwrap().as_ref().clone();
     let mut second = first.clone();
     second.id = 2;

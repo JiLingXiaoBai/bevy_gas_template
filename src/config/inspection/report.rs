@@ -100,11 +100,11 @@ pub fn describe_ability_at_level(
             append_effect(&mut report, &prepared, effect_id, level)?;
         }
     }
-    for (order, cost) in prepared.additional_costs(id.0).iter().enumerate() {
+    for cost in prepared.additional_costs(id.0) {
         writeln!(
             report,
             "Additional cost / order {}: resource={}, amount={}",
-            order, cost.row.resource, cost.amount
+            cost.index, cost.row.resource, cost.amount
         )
         .map_err(report_error)?;
     }

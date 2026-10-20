@@ -309,8 +309,8 @@ pub struct Ability {
     pub max_level: i32,
     /// Configures cost_effect_id.
     pub cost_effect_id: Option<i32>,
-    /// Configures additional_cost_ids.
-    pub additional_cost_ids: Vec<i32>,
+    /// Configures additional_costs.
+    pub additional_costs: Vec<crate::config::generated::gas::AbilityAdditionalCost>,
     /// Configures cooldown_effect_id.
     pub cooldown_effect_id: Option<i32>,
     /// Configures asset_tags.
@@ -339,8 +339,8 @@ impl Decode for Ability {
             Decode::decode(buf).map_err(|error| error.context("Ability.max_level"))?;
         let cost_effect_id: Option<i32> =
             Decode::decode(buf).map_err(|error| error.context("Ability.cost_effect_id"))?;
-        let additional_cost_ids: Vec<i32> =
-            Decode::decode(buf).map_err(|error| error.context("Ability.additional_cost_ids"))?;
+        let additional_costs: Vec<crate::config::generated::gas::AbilityAdditionalCost> =
+            Decode::decode(buf).map_err(|error| error.context("Ability.additional_costs"))?;
         let cooldown_effect_id: Option<i32> =
             Decode::decode(buf).map_err(|error| error.context("Ability.cooldown_effect_id"))?;
         let asset_tags: Vec<String> =
@@ -364,7 +364,7 @@ impl Decode for Ability {
             name,
             max_level,
             cost_effect_id,
-            additional_cost_ids,
+            additional_costs,
             cooldown_effect_id,
             asset_tags,
             required_tags,
@@ -381,27 +381,19 @@ impl Decode for Ability {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone)]
 pub struct AbilityAdditionalCost {
-    /// Configures id.
-    pub id: i32,
     /// Configures resource.
-    pub resource: String,
+    pub resource: i32,
     /// Configures amount.
     pub amount: i64,
 }
 
 impl Decode for AbilityAdditionalCost {
     fn decode(buf: &mut ByteBuf) -> Result<Self, DecodeError> {
-        let id: i32 =
-            Decode::decode(buf).map_err(|error| error.context("AbilityAdditionalCost.id"))?;
-        let resource: String =
+        let resource: i32 =
             Decode::decode(buf).map_err(|error| error.context("AbilityAdditionalCost.resource"))?;
         let amount: i64 =
             Decode::decode(buf).map_err(|error| error.context("AbilityAdditionalCost.amount"))?;
-        Ok(Self {
-            id,
-            resource,
-            amount,
-        })
+        Ok(Self { resource, amount })
     }
 }
 /// Stores one AbilityTask configuration record.
@@ -1032,88 +1024,6 @@ impl TbAbility {
         self.rows.is_empty()
     }
 }
-/// Stores gas.TbAbilityAdditionalCost rows and a checked primary-key index.
-#[derive(Debug, Clone)]
-pub struct TbAbilityAdditionalCost {
-    rows: Vec<Arc<crate::config::generated::gas::AbilityAdditionalCost>>,
-    indices: std::collections::BTreeMap<i32, usize>,
-}
-
-impl TbAbilityAdditionalCost {
-    /// Decodes a complete table file, rejecting malformed bytes or duplicate keys.
-    pub fn new(buf: &mut ByteBuf) -> Result<Arc<Self>, LubanError> {
-        let count = buf
-            .read_size()
-            .map_err(|error| error.context("gas.TbAbilityAdditionalCost.count"))?;
-        let mut rows = Vec::new();
-        rows.try_reserve_exact(count)
-            .map_err(|error| LubanError::Table(error.to_string()))?;
-        for index in 0..count {
-            rows.push(
-                crate::config::generated::gas::AbilityAdditionalCost::decode(buf).map_err(
-                    |error| error.context(format!("gas.TbAbilityAdditionalCost row {index}")),
-                )?,
-            );
-        }
-        buf.finish()
-            .map_err(|error| error.context("gas.TbAbilityAdditionalCost"))?;
-        Ok(Arc::new(Self::from_rows(rows)?))
-    }
-
-    /// Builds an indexed table from records, returning an error for duplicate keys.
-    pub fn from_rows(
-        rows: Vec<crate::config::generated::gas::AbilityAdditionalCost>,
-    ) -> Result<Self, LubanError> {
-        let mut indices = std::collections::BTreeMap::new();
-        let mut shared_rows = Vec::with_capacity(rows.len());
-        for row in rows {
-            let key = row.id;
-            if indices.contains_key(&key) {
-                return Err(LubanError::Table(format!(
-                    "duplicate gas.TbAbilityAdditionalCost key: {key:?}"
-                )));
-            }
-            indices.insert(key, shared_rows.len());
-            shared_rows.push(Arc::new(row));
-        }
-        Ok(Self {
-            rows: shared_rows,
-            indices,
-        })
-    }
-
-    /// Returns the matching record, or `None` if the primary key is absent.
-    pub fn get<Q>(
-        &self,
-        key: &Q,
-    ) -> Option<&Arc<crate::config::generated::gas::AbilityAdditionalCost>>
-    where
-        i32: std::borrow::Borrow<Q>,
-        Q: Ord + ?Sized,
-    {
-        self.indices
-            .get(key)
-            .and_then(|index| self.rows.get(*index))
-    }
-
-    /// Iterates through records in exported row order.
-    pub fn iter(
-        &self,
-    ) -> impl ExactSizeIterator<Item = &Arc<crate::config::generated::gas::AbilityAdditionalCost>>
-    {
-        self.rows.iter()
-    }
-
-    /// Returns the number of records in this table.
-    pub fn len(&self) -> usize {
-        self.rows.len()
-    }
-
-    /// Returns whether this table has no records.
-    pub fn is_empty(&self) -> bool {
-        self.rows.is_empty()
-    }
-}
 /// Stores gas.TbAbilityTask rows and a checked primary-key index.
 #[derive(Debug, Clone)]
 pub struct TbAbilityTask {
@@ -1308,7 +1218,7 @@ pub const SCHEMA_DESCRIPTOR: &str = concat!(
     "name:String;",
     "max_level:i32;",
     "cost_effect_id:Option<i32>;",
-    "additional_cost_ids:Vec<i32>;",
+    "additional_costs:Vec<crate::gas::AbilityAdditionalCost>;",
     "cooldown_effect_id:Option<i32>;",
     "asset_tags:Vec<String>;",
     "required_tags:Vec<String>;",
@@ -1319,8 +1229,7 @@ pub const SCHEMA_DESCRIPTOR: &str = concat!(
     "allow_multiple_instances:bool;",
     "task_ids:Vec<i32>;",
     "bean:AbilityAdditionalCost;",
-    "id:i32;",
-    "resource:String;",
+    "resource:i32;",
     "amount:i64;",
     "bean:AbilityTask;",
     "id:i32;",
@@ -1371,7 +1280,6 @@ pub const SCHEMA_DESCRIPTOR: &str = concat!(
     "table:gas.TbEffect:crate::gas::Effect:id:gas_tbeffect;",
     "table:gas.TbModifier:crate::gas::Modifier:id:gas_tbmodifier;",
     "table:gas.TbAbility:crate::gas::Ability:id:gas_tbability;",
-    "table:gas.TbAbilityAdditionalCost:crate::gas::AbilityAdditionalCost:id:gas_tbabilityadditionalcost;",
     "table:gas.TbAbilityTask:crate::gas::AbilityTask:id:gas_tbabilitytask;",
     "table:gas.TbTargeting:crate::gas::Targeting:id:gas_tbtargeting;",
 );

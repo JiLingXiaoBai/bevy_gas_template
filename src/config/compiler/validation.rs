@@ -26,7 +26,6 @@ pub fn validate_tables(tables: &Tables) -> Result<(), ConfigError> {
 pub(crate) fn validate_prepared(prepared: &PreparedTables) -> Result<(), ConfigError> {
     let tables = prepared.tables;
     validate_names(tables)?;
-    validate_additional_costs(tables)?;
     validate_effects(tables)?;
     validate_modifiers(tables)?;
     validate_targeting(tables)?;
@@ -117,29 +116,6 @@ fn validate_names(tables: &Tables) -> Result<(), ConfigError> {
         ConfigLocation::table("Attribute").field("region"),
         "cold attribute capacity exceeded",
     )
-}
-
-fn validate_additional_costs(tables: &Tables) -> Result<(), ConfigError> {
-    let mut ids = BTreeSet::new();
-    for row in tables.tb_ability_additional_cost.iter() {
-        let context = ConfigLocation::table("AbilityAdditionalCost").row(row.id);
-        require(
-            row.id > 0 && ids.insert(row.id),
-            context.field("id"),
-            "additional cost ID must be positive and unique",
-        )?;
-        require(
-            valid_name(&row.resource),
-            context.field("resource"),
-            "use nonempty dot-separated ASCII name segments",
-        )?;
-        require(
-            (1..=i64::from(u32::MAX)).contains(&row.amount),
-            context.field("amount"),
-            "amount must be in 1..=4294967295",
-        )?;
-    }
-    Ok(())
 }
 
 fn validate_tag_refs(

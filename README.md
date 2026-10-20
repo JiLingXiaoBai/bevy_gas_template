@@ -87,11 +87,16 @@ cargo run --example configured_game -- --headless --config "./assets/config"
 
 ## 修改配置
 
-1. 编辑 `config/tables/` 的 Excel；表登记和枚举位于 `config/defines/gas.xml`。
+1. 编辑 `config/tables/` 的 Excel；表登记、枚举与内联成本 Bean 位于 `config/defines/gas.xml`。
 2. 运行 `pwsh -NoProfile -File config/export.ps1`。
 3. 验证自己的游戏加载流程；保留演示时，可运行 `cargo run --example configured_game -- --headless` 或窗口演示。
 
 导表在临时项目中生成、编译并校验配置，全部通过才发布到 `config/generated/` 和 `assets/config/`。暂存 Cargo.toml 将本地 GAS 路径转为绝对路径，仍使用同一份库源码；构建使用独立的 `target/config-export/`。脚本按存在性复制 examples/tests，删除这些目录不影响导表流程。
+
+技能的外部资源消耗直接写在 ability 表的 `additional_costs` 有类型列表中，每项为 i32 资源 ID
+resource 和固定整数 amount，例如 `5001,1;5002,3`。顺序与重复项保留，空列表表示无额外消耗。
+资源 ID 允许完整 i32 范围，直接传给 GAS，由游戏 Provider 按整数 ID 判断有效性与支付，无需名称池映射。
+配置现在为七张表，不再维护独立 ability_additional_cost 表。旧成本行 ID 列表按原顺序展开，旧资源名称按游戏映射转成整数，并完整重导；详见 [配置迁移](.docs/03-gas-configuration.md#配置迁移)。
 
 生成代码与 `.bytes` 必须来自同一次导表；不要手动编辑生成 Rust 或 manifest。配置校验工具可独立使用：
 

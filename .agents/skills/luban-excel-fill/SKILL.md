@@ -9,6 +9,9 @@ Before using this skill in this repository, read the [AI skills project conventi
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
 Configuration code belongs to `bevy_gas_template::config`; the `bevy_gas` dependency contains the GAS runtime.
 Use this game's `tools/luban/` and local `.cache/`; published binary data belongs in `assets/config/`.
+Ability `additional_costs` is an inline typed list of `gas.AbilityAdditionalCost` (`resource: int`, `amount: long`), without separate cost-row references. Preserve authored order and duplicates; an empty list means no extra cost.
+The current field type is `(list#sep=;),gas.AbilityAdditionalCost`; the bean uses comma-separated integer `resource,amount` fields, such as `5001,1;5002,3`. Resource IDs allow the full i32 range, including zero and negatives; amount must be in `1..=4294967295`.
+Use the existing headers and the [configuration guide](../../../.docs/03-gas-configuration.md#技能内联额外消耗) for examples. Map old resource names to game-defined numeric IDs and regenerate; do not recreate the removed cost workbook.
 
 
 # Luban: Excel 填表

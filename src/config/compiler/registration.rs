@@ -1,9 +1,9 @@
 //! Deterministic registry construction and tag reference resolution.
 
-use super::{ConfigError, ConfigErrorKind, ConfigLocation, PreparedTables, Tables, data};
+use super::{ConfigError, ConfigErrorKind, ConfigLocation, Tables, data};
 use bevy_gas::{
     AttributeId, AttributeIdManager, AttributeRegion, GameplayTag, GameplayTagBits,
-    GameplayTagManager, UniqueName, UniqueNamePool, add_bit_with_tag,
+    GameplayTagManager, UniqueNamePool, add_bit_with_tag,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -94,33 +94,6 @@ pub(super) fn register_attributes(
         attributes.insert(row.name.clone(), id);
     }
     Ok(attributes)
-}
-
-pub(super) fn register_additional_cost_resources<'a>(
-    prepared: &PreparedTables<'a>,
-    names: &mut UniqueNamePool,
-) -> Result<BTreeMap<&'a str, UniqueName>, ConfigError> {
-    let mut ordered = BTreeMap::new();
-    for ability in prepared.tables.tb_ability.iter() {
-        for cost in prepared.additional_costs(ability.id) {
-            let row = cost.row;
-            ordered.entry(row.resource.as_str()).or_insert(row.id);
-        }
-    }
-    let mut resources = BTreeMap::new();
-    for (resource, row_id) in ordered {
-        let unique = names.new_name(resource).map_err(|error| {
-            ConfigError::new(
-                ConfigErrorKind::Registration,
-                ConfigLocation::table("AbilityAdditionalCost")
-                    .row(row_id)
-                    .field("resource"),
-                error.to_string(),
-            )
-        })?;
-        resources.insert(resource, unique);
-    }
-    Ok(resources)
 }
 
 pub(super) fn resolve_tags(

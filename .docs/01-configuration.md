@@ -24,7 +24,7 @@ GAS 核心无须知道游戏的 Excel 字段、配置 ID、空间索引或表现
 需要配置的游戏可按下面的顺序接入；模板的 GamePlugin 扩展方式见 [09 — 从模板开始新游戏](09-starting-a-game.md)。
 
 1. 确认 SimulationPlugin 已安装（基础 main 已完成，包含 GAS）；需要技能命令时添加 AbilityCommandPlugin，它会补充 TargetingPlugin；只需索敌时单独添加 TargetingPlugin，需要表现时另装 PositionPresentationPlugin。
-2. 使用游戏 load_tables 读取自己生成的八张表。
+2. 使用游戏 load_tables 读取自己生成的七张表；额外消耗已内联在技能的 additional_costs 中。
 3. 使用游戏 compile_catalog 校验引用、数值和动作载荷，建立共享 GAS 定义和游戏 TargetingDefinition。
 4. 将游戏 GameplayCatalog 插入 World。
 5. 创建 GameplayAbilitySystemBundle，初始化属性，以游戏 grant_ability 授予技能并保存 ID 到 Handle 的映射。

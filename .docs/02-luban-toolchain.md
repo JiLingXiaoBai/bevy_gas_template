@@ -5,7 +5,7 @@
 项目在 `config/` 维护 XML 定义与 Excel 数据，在 `tools/luban/` 固定 Luban、Luban.Agent 与 Luban.Mcp 工具链。
 日常通过 `config/export.ps1` 将配置导出为 Rust 代码和二进制数据；工具缓存与配置源文件分开存放。
 Codex 通过 Luban.Mcp 查询表结构、校验和生成配置；Luban.Agent 保留为 MCP 的查询与校验后端。
-当前配置包含八张 GAS 表，提供真实 Excel 配置包。
+当前配置包含七张 GAS 表，提供真实 Excel 配置包。
 Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_template` 包的 `config` 模块，始终参与编译；
 默认开启的 `config-validation` feature 启用配置包校验、完整业务校验和离线工具；最小构建用 `--no-default-features` 关闭。加载后构造共享 GAS 定义，
 本模板通过同级本地 path 依赖使用 GAS 公共 API，当前本地库已移除配置层；配置与开发工具由本模板维护。
@@ -23,8 +23,8 @@ Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_templa
 
 | 路径                                    | 职责                                                                               | Git 管理       |
 | --------------------------------------- | ---------------------------------------------------------------------------------- | -------------- |
-| `config/tables/`                        | 八张 `gas.*.xlsx` 数据表                                                           | 提交           |
-| `config/defines/gas.xml`、`builtin.xml` | GAS 表登记、枚举及 Luban 内置定义                                                  | 提交           |
+| `config/tables/`                        | 七张 `gas.*.xlsx` 数据表                                                           | 提交           |
+| `config/defines/gas.xml`、`builtin.xml` | GAS 表登记、枚举、内联 Bean 及 Luban 内置定义                                                  | 提交           |
 | `config/luban.conf`                     | 输入目录、定义文件和导出目标                                                       | 提交           |
 | `config/export.ps1`                     | 项目导表入口，暂存生成、编译、玩法校验后发布                                       | 提交           |
 | `config/templates/rust-bin/`            | 项目维护的 Rust Result 解码模板                                                    | 提交           |
@@ -35,7 +35,7 @@ Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_templa
 | `examples/configured_game/`            | 配置演示的窗口、无窗口验收及专用测试                                              | 可删除的示例   |
 | `config/LICENSE.Luban`                  | 初始示例文件的上游 MIT 许可证                                                      | 提交           |
 | `config/generated/`                     | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，无独立 Cargo 清单                      | 提交，导表生成 |
-| `assets/config/`                           | 八张 GAS 表的二进制数据及 `manifest.json`                                          | 忽略，导表生成 |
+| `assets/config/`                           | 七张 GAS 表的二进制数据及 `manifest.json`                                          | 忽略，导表生成 |
 | `tools/luban/.cache/`                   | 三种 Luban 工具的下载归档、已安装工具及临时验证产物                                | 忽略           |
 
 首次使用需要 Windows x64 与本页列出的工具；先另行准备同级 GAS 源码，再依次准备工具链与锁定的其他 Cargo 依赖，随后导表运行配置演示。基础程序无需 Luban 或导表，直接 `cargo run`；以下演示命令在新仓库根目录执行：
@@ -64,8 +64,8 @@ cargo run --example configured_game
 
 `luban.conf` 的路径相对于 `config/`：`dataDir` 指向 `tables`，`schemaFiles` 显式列出
 `defines/builtin.xml` 和 `defines/gas.xml`，两者的 `type` 均为空字符串，按 XML 解析。
-`gas.xml` 统一登记八张 GAS 表与普通枚举；表的行结构继续从对应 Excel 的 `##var`、`##type`
-表头读取。原三个定义 Excel 已移除，原 `__beans__.xlsx` 没有业务 Bean 定义，不保留空的替代文件。
+`gas.xml` 统一登记七张 GAS 表、普通枚举与 `AbilityAdditionalCost` 内联 Bean；表的行结构继续从对应 Excel 的 `##var`、`##type`
+表头读取。额外消耗 Bean 在 XML 中明确声明 resource:int、amount:long，技能表通过 additional_costs 内联列表使用；resource 允许完整 i32 范围，不生成独立成本表。原三个定义 Excel 已移除，无需恢复它们。
 当前只有 `all` 目标，包含 `c`、`s`、`e` 分组，管理器为 `Tables`，生成器顶层模块为 `cfg`。
 上游生成器的内置模板仍会在暂存区产生 Cargo 清单与宏包；导表脚本只提取需要的 Rust 模块，
 将生成入口发布为 `config/generated/mod.rs`，由 `src/config.rs` 通过外部路径声明
@@ -255,7 +255,9 @@ Git blob，与工具链 v5.0.0 的提交 `52d329fb93be79810ed090f489ba4bf3821c4e
 - 配置入口使用 `config/luban.conf`，当前目标是 `all`；Excel 数据在 `config/tables/`。
   新增 GAS 表与枚举在 `config/defines/gas.xml` 登记，不重建 `__tables__.xlsx`、
   `__beans__.xlsx` 或 `__enums__.xlsx`。表字段默认继续从数据 Excel 表头读取，不重复声明同名 Bean。
-  需要共享 Bean 时可在该 XML 中定义。`builtin.xml` 保留 Luban 内置定义，不放业务表。
+  内联 `AbilityAdditionalCost` 已在该 XML 定义，只有 resource:int、amount:long，由技能 additional_costs
+  列表使用；不重建额外消耗独立表或 ID 引用。其他 Bean 按需定义，不与表头推断的行类型重复。
+  `builtin.xml` 保留 Luban 内置定义，不放业务表。
   上游 `Data/`、`Defines/` 和 Excel Schema 文件均为泛用示例。
 - 修改前按需使用原生 MCP `list_tables`、`get_schema` 或 `describe` 确认实际结构；
   上游 `ListTables` / `GetSchema` 在本项目对应这两个 snake_case 工具名。
@@ -290,10 +292,10 @@ Codex 会从项目 `.agents/skills/` 发现 skill 的名称和描述，在任务
 
 ## 工具验证与运行时接入
 
-本模板工具链已使用自己的锁文件、下载归档和缓存通过 setup 校验：Luban、Agent、MCP
+以下保留额外消耗内联之前的工具链验证记录，不代表本次 Schema 已自动重验。本模板工具链曾使用自己的锁文件、下载归档和缓存通过 setup 校验：Luban、Agent、MCP
 版本正确，Agent capabilities 可用。目录改名后，已从 src/ 子目录按 .codex/config.toml 的
 Git 根目录解析方式启动独立 stdio MCP：initialize 成功，list_tables 使用相对入口
-config/luban.conf 与 all 目标返回八张表、ok=true、exitCode=0、空 errors；关闭 stdin 后
+config/luban.conf 与 all 目标返回当时的表集合、ok=true、exitCode=0、空 errors；关闭 stdin 后
 服务自然退出且无残留进程。此前配置迁移时还完成 tools/list 与完整导表，验证了候选编译、
 包清单、业务校验和发布；库代码、依赖或路径变化后应重新执行 README 的导表及回归流程。
 

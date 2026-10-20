@@ -33,7 +33,14 @@ pub(crate) struct PreparedAction {
 /// One external-resource requirement with a checked runtime quantity.
 pub(crate) struct PreparedAdditionalCost<'a> {
     pub(crate) row: &'a data::AbilityAdditionalCost,
+    pub(crate) index: usize,
     pub(crate) amount: u32,
+}
+
+impl PreparedAdditionalCost<'_> {
+    pub(crate) fn location(&self, ability_id: i32) -> ConfigLocation {
+        additional_cost_location(ability_id, self.index)
+    }
 }
 
 /// Magnitude parameters actually used by the runtime.
@@ -80,7 +87,7 @@ impl<'a> PreparedTables<'a> {
                 .insert(ability.id, prepare_actions(tables, ability)?);
             prepared
                 .additional_costs
-                .insert(ability.id, prepare_additional_costs(tables, ability)?);
+                .insert(ability.id, prepare_additional_costs(ability)?);
         }
         for effect in tables.tb_effect.iter() {
             prepared
@@ -186,31 +193,19 @@ fn prepare_actions(
     Ok(actions)
 }
 
-fn prepare_additional_costs<'a>(
-    tables: &'a Tables,
+fn additional_cost_location(ability_id: i32, index: usize) -> ConfigLocation {
+    ConfigLocation::table("Ability")
+        .row(ability_id)
+        .field(format!("additional_costs[{index}]"))
+}
+
+fn prepare_additional_costs(
     ability: &data::Ability,
-) -> Result<Vec<PreparedAdditionalCost<'a>>, ConfigError> {
-    let mut costs = Vec::with_capacity(ability.additional_cost_ids.len());
-    let mut seen = BTreeSet::new();
-    let mut totals: BTreeMap<&str, u32> = BTreeMap::new();
-    let references = ConfigLocation::table("Ability")
-        .row(ability.id)
-        .field("additional_cost_ids");
-    for &id in &ability.additional_cost_ids {
-        let row = resolve_reference(
-            id,
-            tables.tb_ability_additional_cost.get(&id),
-            &mut seen,
-            &references,
-        )?;
-        let location = ConfigLocation::table("AbilityAdditionalCost").row(row.id);
-        if row.resource.trim().is_empty() {
-            return Err(ConfigError::new(
-                ConfigErrorKind::InvalidValue,
-                location.field("resource"),
-                "resource must not be blank",
-            ));
-        }
+) -> Result<Vec<PreparedAdditionalCost<'_>>, ConfigError> {
+    let mut costs = Vec::with_capacity(ability.additional_costs.len());
+    let mut totals: BTreeMap<i32, u32> = BTreeMap::new();
+    for (index, row) in ability.additional_costs.iter().enumerate() {
+        let location = additional_cost_location(ability.id, index);
         let amount = u32::try_from(row.amount)
             .ok()
             .filter(|amount| *amount > 0)
@@ -221,7 +216,7 @@ fn prepare_additional_costs<'a>(
                     "amount must be in 1..=4294967295",
                 )
             })?;
-        let total = totals.entry(row.resource.as_str()).or_default();
+        let total = totals.entry(row.resource).or_default();
         *total = total.checked_add(amount).ok_or_else(|| {
             ConfigError::new(
                 ConfigErrorKind::InvalidValue,
@@ -229,7 +224,7 @@ fn prepare_additional_costs<'a>(
                 "total amount for this ability and resource exceeds u32 capacity",
             )
         })?;
-        costs.push(PreparedAdditionalCost { row, amount });
+        costs.push(PreparedAdditionalCost { row, index, amount });
     }
     Ok(costs)
 }

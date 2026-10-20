@@ -5,9 +5,8 @@ use bevy_gas::{
     AttributeIdManager, AttributeSet, EffectContext, EffectPayload, GameplayTagContainer,
 };
 use bevy_gas_template::config::generated::gas::{
-    AbilityAdditionalCost, Attribute, AttributeRegion, DurationKind, Effect, MagnitudeKind,
-    Modifier, ModifierOperation, TbAbility, TbAbilityAdditionalCost, TbAbilityTask, TbAttribute,
-    TbEffect, TbModifier,
+    Attribute, AttributeRegion, DurationKind, Effect, MagnitudeKind, Modifier, ModifierOperation,
+    TbAbility, TbAbilityTask, TbAttribute, TbEffect, TbModifier,
 };
 use bevy_gas_template::config::generated::{ByteBuf, Tables};
 use bevy_gas_template::config::{ConfigErrorKind, ConfigLocation, EffectId, compile_catalog};
@@ -41,7 +40,7 @@ fn modifier(id: i32, base: f32) -> Modifier {
 
 #[test]
 fn missing_and_duplicate_child_ids_identify_the_parent_reference_field() {
-    for field in ["task_ids", "additional_cost_ids", "modifier_ids"] {
+    for field in ["task_ids", "modifier_ids"] {
         for (ids, kind) in [
             (vec![99], ConfigErrorKind::Reference),
             (vec![1, 1], ConfigErrorKind::InvalidValue),
@@ -51,18 +50,6 @@ fn missing_and_duplicate_child_ids_identify_the_parent_reference_field() {
             let table = match field {
                 "task_ids" => {
                     ability.task_ids = ids;
-                    "Ability"
-                }
-                "additional_cost_ids" => {
-                    ability.additional_cost_ids = ids;
-                    tables.tb_ability_additional_cost = Arc::new(
-                        TbAbilityAdditionalCost::from_rows(vec![AbilityAdditionalCost {
-                            id: 1,
-                            resource: "Inventory.Bomb".to_owned(),
-                            amount: 1,
-                        }])
-                        .unwrap(),
-                    );
                     "Ability"
                 }
                 "modifier_ids" => {
@@ -147,7 +134,7 @@ fn effects_share_modifier_definitions_with_independent_list_order() {
 
 #[test]
 fn unused_child_definitions_are_only_checked_by_authoring_validation() {
-    for (table, invalid) in ["AbilityTask", "AbilityAdditionalCost", "Modifier"]
+    for (table, invalid) in ["AbilityTask", "Modifier"]
         .into_iter()
         .flat_map(|table| [false, true].map(|invalid| (table, invalid)))
     {
@@ -160,16 +147,6 @@ fn unused_child_definitions_are_only_checked_by_authoring_validation() {
                 unused.at_tick = if invalid { -1 } else { 0 };
                 tables.tb_ability_task =
                     Arc::new(TbAbilityTask::from_rows(vec![original, unused]).unwrap());
-            }
-            "AbilityAdditionalCost" => {
-                tables.tb_ability_additional_cost = Arc::new(
-                    TbAbilityAdditionalCost::from_rows(vec![AbilityAdditionalCost {
-                        id: 99,
-                        resource: "Inventory.Unused".to_owned(),
-                        amount: if invalid { 0 } else { 1 },
-                    }])
-                    .unwrap(),
-                );
             }
             "Modifier" => {
                 tables.tb_attribute = Arc::new(
@@ -204,7 +181,7 @@ fn unused_child_definitions_are_only_checked_by_authoring_validation() {
 #[test]
 fn binary_rows_decode_parent_lists_and_independent_child_definitions() {
     // All integers fit in one byte; f32 values use little-endian IEEE 754 bytes.
-    let ability = vec![1, 7, 1, b'A', 2, 0, 1, 6, 0, 0, 0, 0, 0, 0, 1, 0, 2, 9, 8];
+    let ability = vec![1, 7, 1, b'A', 2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 9, 8];
     let task = vec![1, 9, 3, 1, 0, 0];
     let mut effect = vec![1, 4, 1, b'E', 0, 0, 0, 0];
     effect.extend_from_slice(&1.0_f32.to_le_bytes());
@@ -226,7 +203,7 @@ fn binary_rows_decode_parent_lists_and_independent_child_definitions() {
     .unwrap();
     let ability = tables.tb_ability.get(&7).unwrap();
     assert_eq!(ability.task_ids, [9, 8]);
-    assert_eq!(ability.additional_cost_ids, [6]);
+    assert!(ability.additional_costs.is_empty());
     assert_eq!(tables.tb_ability_task.get(&9).unwrap().at_tick, 3);
     assert_eq!(tables.tb_effect.get(&4).unwrap().modifier_ids, [3, 2]);
     assert_eq!(tables.tb_modifier.get(&3).unwrap().base, 12.0);

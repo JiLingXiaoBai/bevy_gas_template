@@ -9,8 +9,12 @@ Before using this skill in this repository, read the [AI skills project conventi
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
 Configuration code belongs to `bevy_gas_template::config`; the `bevy_gas` dependency contains the GAS runtime.
 Use this game's `tools/luban/` and local `.cache/`; published binary data belongs in `assets/config/`.
-This repository maintains GAS table registrations and enums in `config/defines/gas.xml`, with row fields read from Excel data headers.
-Add shared beans to that XML only when needed; do not duplicate row beans inferred from the data headers.
+This repository maintains GAS table registrations, enums, and explicit inline beans in `config/defines/gas.xml`, with table row fields read from Excel data headers.
+The existing `gas.AbilityAdditionalCost` bean has `resource: int` (Rust `i32`) and `amount: long`, without a separate cost-row ID; abilities own an inline `additional_costs` list. Do not recreate the former cost table or its row references.
+Allow the full i32 resource range, including zero and negatives; the game provider decides whether a resource exists. Keep amount in `1..=4294967295`.
+Preserve list order and duplicate entries; check each ability's total per resource ID without merging authored entries. Pass the i32 ID directly to GAS `AdditionalCost`; providers match the same integer without resource registration or a name-pool mapping. The compiler's `resources` map is removed; the preparation `totals` map only checks per-ability quantity overflow and never reorders or merges the output list. Keep name-pool registration for tags and attributes.
+See the [configuration guide](../../../.docs/03-gas-configuration.md#技能内联额外消耗) for the format and migration from string names; regenerate the full package after changing the schema.
+Add other beans to that XML only when needed; do not duplicate row beans inferred from the data headers.
 `builtin.xml` contains Luban built-ins, and the Excel Schema files mentioned below are generic alternatives.
 
 
