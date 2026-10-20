@@ -12,6 +12,7 @@ pub(super) fn square_is_finite(value: f32) -> bool {
     (value * value).is_finite()
 }
 
+#[cfg(feature = "config-validation")]
 pub(super) fn is_within_f32_range(value: f64) -> bool {
     value.is_finite() && value.abs() <= f64::from(f32::MAX)
 }

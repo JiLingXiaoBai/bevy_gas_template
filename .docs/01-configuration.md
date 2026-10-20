@@ -61,6 +61,10 @@ Catalog 构建保留原实现的失败原子性：克隆 UniqueNamePool、Gamepl
   ModifierMagnitude::Calculated。上下文仅提供库公开的只读能力，不能隐式访问任意游戏 ECS 状态。
 - 游戏事件动作：运行时已有 EmitEvent，但当前示例表只编译 ApplyEffect/EndAbility；需要先增加游戏配置映射。
   Observer 延迟执行，不能把它当作启动阶段同步任务。弹体的取消与持久化规则由游戏定义。
+  `source_attribute(id)`／`target_attribute(id)` 读取求值时的来源／目标属性（含尚未重算的修改器），
+  `source_snapshot()` 则读取调用方显式捕获的历史快照。效果在应用时求值，周期执行继续复用结果。
+  公式返回类型仍为 f32；非有限修改器幅度由 GAS 以 NonFiniteModifier 错误拒绝，不能用零掩盖溢出。
+  本模板 LinearLevel 保留这项运行时检查，完整制作校验另检查技能允许等级范围。
 - 新的原生任务生命周期或基础聚合运算：先在 GAS 库实现并测试，再通过依赖升级接入。
 
 配置编译器构造 GAS 库公开的任务与 Modifier 定义，游戏在本包内维护配置映射与额外玩法。

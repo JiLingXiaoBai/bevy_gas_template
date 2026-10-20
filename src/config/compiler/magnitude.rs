@@ -1,6 +1,5 @@
 //! Linear level formulas shared by runtime effects and authoring tools.
 
-use super::numeric::is_within_f32_range;
 use bevy_gas::{ModifierEvaluationContext, ModifierMagnitudeCalculation};
 
 pub(crate) fn evaluate_linear(base: f32, per_level: f32, level: u32) -> f64 {
@@ -14,11 +13,7 @@ pub(super) struct LinearLevelMagnitude {
 
 impl ModifierMagnitudeCalculation for LinearLevelMagnitude {
     fn calculate(&self, context: &dyn ModifierEvaluationContext) -> f32 {
-        let value = evaluate_linear(self.base, self.per_level, context.level());
-        if is_within_f32_range(value) {
-            value as f32
-        } else {
-            0.0
-        }
+        // Preserve overflow as non-finite so GAS rejects the effect before applying modifiers.
+        evaluate_linear(self.base, self.per_level, context.level()) as f32
     }
 }

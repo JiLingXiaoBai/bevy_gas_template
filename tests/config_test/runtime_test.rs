@@ -1,5 +1,10 @@
-use bevy::prelude::{App, MinimalPlugins, World};
-use bevy_gas::{AbilitySystemComponent, GameplayAbilitySystemPlugin};
+use bevy::ecs::system::RunSystemOnce;
+use bevy::prelude::{App, MinimalPlugins, Query, Res, World};
+use bevy_gas::{
+    AbilitySystemComponent, ActiveGameplayEffects, AttributeIdManager, AttributeSet, EffectPayload,
+    EffectSystemParams, GameplayAbilitySystemBundle, GameplayAbilitySystemPlugin,
+    GameplayEffectApplicationError, apply_gameplay_effect,
+};
 use bevy_gas_template::config::generated::gas::{
     Ability, AbilityTask, ActionKind, Attribute, AttributeRegion, DurationKind, Effect,
     MagnitudeKind, Modifier, ModifierOperation, SelectionKind, SortOrder, TargetScope, Targeting,
@@ -7,7 +12,7 @@ use bevy_gas_template::config::generated::gas::{
 };
 use bevy_gas_template::config::generated::{ByteBuf, TABLE_FILES, Tables};
 use bevy_gas_template::config::{
-    AbilityId, ConfigErrorKind, ConfigLocation, ConfiguredAbilities, compile_catalog,
+    AbilityId, ConfigErrorKind, ConfigLocation, ConfiguredAbilities, EffectId, compile_catalog,
     grant_ability, load_tables, read_package, revoke_ability,
 };
 #[cfg(feature = "config-validation")]
@@ -214,6 +219,152 @@ fn modifier_parameter_checks_respect_magnitude_kind_and_feature() {
             .unwrap(),
         );
         assert_eq!(compile_catalog(&tables, app().world_mut()).is_ok(), valid);
+    }
+}
+
+fn linear_effect_tables(
+    base: f32,
+    per_level: f32,
+    max_level: i32,
+    duration: DurationKind,
+) -> Tables {
+    let mut tables = tables(None);
+    tables.tb_attribute = Arc::new(
+        TbAttribute::from_rows(vec![Attribute {
+            name: "Health".to_owned(),
+            region: AttributeRegion::Hot,
+            description: String::new(),
+        }])
+        .unwrap(),
+    );
+    let mut definition = effect(Some(2), None, 1.0);
+    definition.duration_kind = duration;
+    if matches!(duration, DurationKind::Instant) {
+        definition.duration_ticks = None;
+    }
+    definition.modifier_ids = vec![1, 2];
+    tables.tb_effect = Arc::new(TbEffect::from_rows(vec![definition]).unwrap());
+    tables.tb_modifier = Arc::new(
+        TbModifier::from_rows(vec![
+            Modifier {
+                id: 1,
+                attribute: "Health".to_owned(),
+                operation: ModifierOperation::Add,
+                magnitude_kind: MagnitudeKind::Flat,
+                base: 10.0,
+                per_level: 0.0,
+            },
+            Modifier {
+                id: 2,
+                attribute: "Health".to_owned(),
+                operation: ModifierOperation::Add,
+                magnitude_kind: MagnitudeKind::LinearLevel,
+                base,
+                per_level,
+            },
+        ])
+        .unwrap(),
+    );
+    let mut ability = tables.tb_ability.get(&1).unwrap().as_ref().clone();
+    ability.max_level = max_level;
+    ability.task_ids = vec![2, 1];
+    tables.tb_ability = Arc::new(TbAbility::from_rows(vec![ability]).unwrap());
+    let end = tables.tb_ability_task.get(&1).unwrap().as_ref().clone();
+    tables.tb_ability_task = Arc::new(
+        TbAbilityTask::from_rows(vec![
+            end,
+            AbilityTask {
+                id: 2,
+                at_tick: 0,
+                kind: ActionKind::ApplyEffect,
+                target_scope: TargetScope::Primary,
+                effect_id: Some(1),
+            },
+        ])
+        .unwrap(),
+    );
+    tables
+}
+
+fn assert_linear_overflow_is_rejected(tables: &Tables) {
+    let mut app = app();
+    let catalog = compile_catalog(tables, app.world_mut()).unwrap();
+    let health = catalog.attribute("Health").unwrap();
+    let definition = Arc::clone(catalog.effect(EffectId(1)).unwrap());
+    let mut bundle = GameplayAbilitySystemBundle::default();
+    bundle
+        .attributes
+        .initialize_attribute(
+            app.world().resource::<AttributeIdManager>(),
+            health,
+            100.0,
+            None,
+        )
+        .unwrap();
+    let target = app.world_mut().spawn(bundle).id();
+    let result = app
+        .world_mut()
+        .run_system_once(move |mut params: EffectSystemParams| {
+            apply_gameplay_effect(
+                target,
+                &definition,
+                &mut params,
+                &EffectPayload::new(target, None, 2),
+            )
+        })
+        .unwrap();
+    assert_eq!(
+        result,
+        Err(GameplayEffectApplicationError::NonFiniteModifier { target, id: health })
+    );
+    let value = app
+        .world_mut()
+        .run_system_once(
+            move |manager: Res<AttributeIdManager>, mut attributes: Query<&mut AttributeSet>| {
+                attributes
+                    .get_mut(target)
+                    .unwrap()
+                    .get_current_value(&manager, health)
+                    .unwrap()
+                    .unwrap()
+            },
+        )
+        .unwrap();
+    assert_eq!(value, 100.0);
+    assert!(
+        app.world()
+            .get::<ActiveGameplayEffects>(target)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn compiled_linear_effect_runtime_overflow_is_rejected_before_any_modifier_runs() {
+    for sign in [-1.0, 1.0] {
+        for duration in [DurationKind::Instant, DurationKind::DurationTicks] {
+            let tables = linear_effect_tables(sign * f32::MAX, sign * f32::MAX, 1, duration);
+            assert_linear_overflow_is_rejected(&tables);
+        }
+    }
+}
+
+#[test]
+fn supported_level_overflow_keeps_authoring_validation_and_minimal_runtime_checks() {
+    let tables = linear_effect_tables(f32::MAX, f32::MAX, 2, DurationKind::Instant);
+    if cfg!(feature = "config-validation") {
+        let error = compile_catalog(&tables, app().world_mut()).err().unwrap();
+        assert_eq!(error.kind(), ConfigErrorKind::Validation);
+        assert_eq!(
+            error.location(),
+            &ConfigLocation::Table {
+                table: "Modifier",
+                row: Some("2".to_owned()),
+                field: Some("magnitude".to_owned()),
+            }
+        );
+    } else {
+        assert_linear_overflow_is_rejected(&tables);
     }
 }
 

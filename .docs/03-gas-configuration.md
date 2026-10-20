@@ -170,8 +170,12 @@ Flat 使用 base，per_level 必须为零。LinearLevel 使用
 `base + per_level * (level - 1)`，等级从 1 开始。
 编译器、预览与运行时计算器共用求值规则；完整业务校验检查允许等级范围内的结果
 可表示为有限 f32。最小构建检查实际使用的 base 与 LinearLevel 的 per_level 有限，
-不检查 Flat 未使用的 per_level，也不预演全部等级；动态公式溢出时沿用计算器返回零的行为。
-适配器授予技能时检查等级；独立使用导出的 Effect 定义时，调用者仍须遵循其等级契约。
+不检查 Flat 未使用的 per_level，也不预演全部等级。运行时以 f64 求值后转换为 f32，
+超出范围的结果保留为非有限值，由 GAS 返回 `GameplayEffectApplicationError::NonFiniteModifier`，
+错误包含目标实体和属性 ID；不再把无效公式替换为合法的零幅度。
+GAS 在应用该效果的修改器之前检查幅度，失败时不会部分应用前面的合法修改器。
+适配器授予技能时检查等级；独立使用导出的 Effect 定义时，调用者仍须遵循其等级契约，
+即使传入超出制作范围的等级，运行时数值检查也不会因关闭 `config-validation` 而消失。
 
 修改器按所属效果 `modifier_ids` 的列表顺序构建，不按修改器 ID 或 Excel 行位置排序。
 同一个修改器可用于多个效果；成本效果仍对其引用的修改器集合执行成本约束。
@@ -425,3 +429,6 @@ cargo build
 父列表引用回归测试位于 `tests/config_test/references_test.rs`：覆盖三个列表的重复与缺失引用、
 共享修改器的独立顺序、新二进制字段布局，以及未引用定义的完整业务校验。
 最小构建和默认构建均需执行这些外部行为测试。
+
+`runtime_test.rs` 另通过真实配置编译和 GAS 效果应用，验证 LinearLevel 正/负溢出在 Instant 与
+Duration 效果中返回明确错误、保持原属性且不创建活动效果；完整制作校验仍提前拒绝允许等级范围内的溢出。
