@@ -22,7 +22,7 @@
 因此新项目可以先沿用 `bevy_gas_template` 编译运行。若改为自己的 Rust 名称，例如 `my_game`：
 
 1. 修改 Cargo.toml 的 `package.name` 与 `package.default-run`。
-2. 同步 `src/`、`tests/` 中的 `bevy_gas_template` crate 导入，以及 README、AGENTS、`.docs/` 和
+2. 同步 `src/`、`tests/` 和保留的 `examples/` 中的 `bevy_gas_template` crate 导入，以及 README、AGENTS、`.docs/` 和
    `.agents/skills/` 中的项目名称与上下文。依赖库的 `bevy_gas` 名称保持不变。
 3. 导表程序的 `gas-config` 名称由 export.ps1 使用，改游戏名时保留该名称。
 4. 运行 `cargo check` 让 Cargo 更新包名对应的 Cargo.lock，并提交更新后的锁文件；不要手改锁文件。
@@ -61,7 +61,7 @@ GAS 的生命周期 Observer 已适配 `On<Discard<T>>`，旧的 `On<Discard, T>
 阶段生产请求，GAS 的 FIFO、同 tick 结算和 startup 同步执行契约保持不变。详细说明见
 [GAS 插件与生命周期](../../bevy_gas/.docs/02-plugins-and-lifecycle.md#bevy-020-升级基线)。
 
-现有模板的 `Camera2d`、`Sprite::from_color` 可继续使用；HUD 的 `TextFont` 已显式指定
+配置演示的 `Camera2d`、`Sprite::from_color` 可继续使用；HUD 的 `TextFont` 已显式指定
 `FontSize::Px`，不依赖字体大小的默认单位。本次引擎升级不调整游戏配置格式或技能数值。
 
 ## 首次工具准备与运行
@@ -70,13 +70,22 @@ GAS 的生命周期 Observer 已适配 `On<Discard<T>>`，旧的 `On<Discard, T>
 PowerShell 7.2+、系统 Microsoft.NETCore.App 8.0.0+ 正式版，以及 PATH 中的 7z.exe 或 7za.exe。
 其他平台尚未配置对应的工具安装与导表流程。首次需要网络获取固定版本工具和锁定的 Cargo 依赖。
 
-先确认 ../bevy_gas/Cargo.toml 存在，再在克隆后的模板或新游戏根目录依次运行：
+先确认 ../bevy_gas/Cargo.toml 存在，在克隆后的模板或新游戏根目录运行基础程序：
+
+```powershell
+cargo fetch --locked
+cargo run
+```
+
+基础程序不读取配置，默认打开空窗口；自己的玩法从 `src/game/plugin.rs` 开始。可删除整个
+examples，基础运行与测试仍独立，详见 [09 — 从模板开始新游戏](09-starting-a-game.md)。
+
+需要配置演示或修改表格时，再准备 Luban 并导表：
 
 ```powershell
 pwsh -NoProfile -File tools/luban/setup.ps1
-cargo fetch --locked
 pwsh -NoProfile -File config/export.ps1
-cargo run
+cargo run --example configured_game
 ```
 
 Cargo 直接构建 path 指向的本地库；cargo fetch 只负责缓存其他需要取得的依赖，不会下载该本地库。
@@ -84,24 +93,30 @@ Cargo 直接构建 path 指向的本地库；cargo fetch 只负责缓存其他�
 缓存位于 `tools/luban/.cache/`。导表校验使用独立 `target/config-export/`，发布
 `config/generated/` 和 `assets/config/`。所有配置、工具及脚本均由新游戏拥有。
 
-日常仅改表时重新执行 export.ps1，再运行游戏或 `cargo run -- --headless`；完整检查命令见项目 README。
+日常仅改表时重新执行 export.ps1，再运行自己的游戏加载流程；保留演示时可用 `cargo run --example configured_game -- --headless` 验收。完整检查命令见项目 README。
 导表采用 offline/locked 构建，依赖未缓存时应先完成 `cargo fetch --locked`。
 
 ## 窗口与无窗口依赖
 
-默认开启 `windowed` 和 `config-validation`，原窗口体验与校验行为保持不变。
-`windowed` 启用 Bevy 原有默认功能；基础依赖只保留 ECS、数学、Transform、时间和日志等能力，
-位置插值并不需要 GPU，因此在无窗口构建中仍可使用。
+默认开启独立的 `windowed` 和 `config-validation`。`windowed` 启用 Bevy 原有默认功能；
+基础依赖只保留 ECS、数学、Transform、时间和日志等能力，位置插值在无窗口构建中仍可使用。
+基础启动器有窗口时默认打开空窗口，无窗口 feature 时自动持续无窗口运行：
 
 ```powershell
-cargo run --no-default-features -- --headless
-cargo run --no-default-features --features config-validation -- --headless
+cargo run -- --headless --ticks 3
+cargo run --no-default-features -- --ticks 3
+cargo run --no-default-features --features config-validation -- --ticks 3
 cargo run --no-default-features --features config-validation --bin gas-config -- validate-config assets/config
 ```
 
-第一条同时关闭完整配置校验；后两条保留校验。未启用 `windowed` 时调用窗口入口会返回明确错误，
-CLI 应显式使用 `--headless`。导表暂存工程同样只启用 `config-validation`，不编译窗口和渲染。
-原 `gameplay` 下的应用入口保持兼容导出，新代码从 `application` 导入，见
+前三条用于基础启动检查，达到指定 fixed tick 数后请求退出；不传 `--ticks` 时持续运行。
+只有第二条关闭完整配置校验。`--tick-hz`、`--seed` 可覆盖共享模拟设置，详见 README。
+配置演示使用 `cargo run --example configured_game`；最小构建下须显式使用
+`cargo run --no-default-features --example configured_game -- --headless`，请求演示窗口会返回明确错误。
+导表暂存工程同样只启用 `config-validation`，不编译窗口和渲染。
+
+`application` 仅保留共享模拟和通用辅助 API；旧 application/gameplay 的 LaserReport、run_headless、
+run_windowed 导出已移除。示例通过 example 运行，自己的游戏使用共享装配与 GamePlugin，见
 [07 — 架构与插件组合](07-architecture-and-composition.md)。
 
 ## 本地联调
@@ -115,7 +130,7 @@ export.ps1 通过 Cargo metadata 读取本地库路径，只在暂存 Cargo.toml
 Cargo.lock 不记录本地库的源码提交，团队需要自行约定使用的库版本。
 
 库的公共 API、依赖或位置变化后，先运行 cargo check 检查并按需更新锁文件，再运行完整导表，
-以及 README 中的 fmt、clippy、默认和全部 feature 测试、build 与无窗口验收。
+以及 README 中的 fmt、clippy、默认和全部 feature 测试、build、基础有限 tick 启动与保留的示例验收。
 配置编译规则有变化时，同步更新游戏适配层、生成结果与文档。本地使用不要求更换为 Git 依赖。
 
 模板自身更新和 GAS 库改动分别维护：新模板文件不会自动合入已创建的游戏，

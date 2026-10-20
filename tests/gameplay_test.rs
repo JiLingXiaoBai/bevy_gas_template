@@ -1,7 +1,4 @@
-//! End-to-end coverage of game-owned configuration and the external GAS runtime.
-
-#[path = "gameplay_test/configured_laser_test.rs"]
-mod configured_laser_test;
+//! Coverage of reusable game adapters and the external GAS runtime.
 
 #[path = "gameplay_test/support_test.rs"]
 mod support_test;
@@ -20,3 +17,9 @@ mod spatial_random_test;
 
 #[path = "gameplay_test/gameplay_schedule_test.rs"]
 mod gameplay_schedule_test;
+
+#[path = "gameplay_test/commands_test.rs"]
+mod commands_test;
+
+#[path = "gameplay_test/simulation_test.rs"]
+mod simulation_test;

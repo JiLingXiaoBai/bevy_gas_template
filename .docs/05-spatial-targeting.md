@@ -64,13 +64,18 @@ Bevy 的唯一插件规则。只声明 SystemSet 或给系统标记集合并不�
 | `targeting/targeting_definition.rs` | Targetable 与目标操作定义、验证 |
 | `targeting/acquisition.rs` | 候选精筛、过滤、排序、限制与同步抓取 SystemParam |
 | `targeting/spatial_index.rs`、`targeting/spatial_index/index.rs` | 派生空间索引、变化同步和组件生命周期 |
-| `targeting/targeting_queue.rs`、`targeting/targeting_queue/` | 输入与结果 Event、FIFO、continuation 及批次处理 |
+| `targeting/targeting_queue.rs`、`targeting/targeting_queue/` | 输入、结果 Event/Message、FIFO、continuation 及批次处理 |
 | `targeting/plugin.rs` | TargetingPlugin 资源与系统安装、空间生命周期 Observer |
 | `targeting/error.rs` | 目标定义与运行时抓取错误 |
-| `../application.rs`、`../application/` | 独立应用层拥有插件组合、共享示例场景、窗口与无窗口入口 |
+| `../application.rs`、`../application/` | 共享模拟设置与 GAS/游戏调度装配，不创建场景或读取配置 |
+| `../game.rs`、`../game/` | 由基础启动器注册的游戏业务入口 |
+| `examples/configured_game/`（仓库根目录） | 独立配置演示、窗口与无窗口验收及其测试 |
 
 空间索引只保存派生数据。逻辑位置、标签、属性和技能状态仍由各自 ECS Component 持有。
-`TargetingRequest` 是私有实现；调用方使用输入、定义、continuation、请求 ID、结果 Event 和队列。
+`TargetingRequest` 是私有实现；调用方使用输入、定义、continuation、请求 ID、结果 Event/Message 和队列。
+`TargetingResultEvent` 保持原有延迟 Observer 行为；新增的 `TargetingRequestResult` 在处理系统内
+作为 Message 发布，并携带 continuation 的提交结果与 GAS 执行请求 ID。
+需要从玩家/AI 意图追踪至最终激活结果时，使用 [08 — 游戏命令](08-game-commands.md)。
 
 ## 定义与实体要求
 

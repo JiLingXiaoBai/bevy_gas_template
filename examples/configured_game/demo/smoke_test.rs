@@ -1,6 +1,7 @@
+use super::run_headless;
 #[cfg(not(feature = "windowed"))]
-use bevy_gas_template::application::run_windowed;
-use bevy_gas_template::application::{default_config_directory, run_headless};
+use super::run_windowed;
+use bevy_gas_template::application::default_config_directory;
 
 #[test]
 fn game_owned_laser_produces_the_expected_gas_result() {

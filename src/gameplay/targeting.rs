@@ -19,6 +19,7 @@ pub use targeting_definition::{
     Targetable, TargetingDefinition, TargetingOperation, TargetingSortOrder,
 };
 pub use targeting_queue::{
-    TargetingContinuation, TargetingInput, TargetingRequestId, TargetingRequestQueue,
-    TargetingResultEvent, process_targeting_request_queue_system, targeting_request_queue_has_work,
+    TargetingContinuation, TargetingContinuationError, TargetingInput, TargetingRequestId,
+    TargetingRequestQueue, TargetingRequestResult, TargetingResultEvent,
+    process_targeting_request_queue_system, targeting_request_queue_has_work,
 };

@@ -1,6 +1,11 @@
 use super::super::{TargetingDefinition, TargetingError};
-use bevy::prelude::{Entity, Event, Vec3};
-use bevy_gas::{AbilityActivationContext, AbilitySpecHandle, AbilityTargetData};
+use bevy::prelude::{Entity, Event, Message, Vec3};
+use bevy_gas::{
+    AbilityActivationContext, AbilityActivationTargetsError, AbilitySpecHandle, AbilityTargetData,
+    GameplayExecutionQueueError, GameplayExecutionRequestId,
+};
+use std::error::Error;
+use std::fmt;
 use std::sync::Arc;
 
 /// Stable identifier assigned to one queued targeting request.
@@ -90,6 +95,44 @@ pub struct TargetingResultEvent {
     request_id: TargetingRequestId,
     source: Entity,
     result: Result<AbilityTargetData, TargetingError>,
+}
+
+/// Failure to submit the activation continuation of a successful targeting request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetingContinuationError {
+    /// Acquired target data could not form an activation target selection.
+    InvalidTargets(AbilityActivationTargetsError),
+    /// The gameplay execution queue rejected the submission.
+    ExecutionQueue(GameplayExecutionQueueError),
+}
+
+impl fmt::Display for TargetingContinuationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidTargets(error) => error.fmt(formatter),
+            Self::ExecutionQueue(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl Error for TargetingContinuationError {}
+
+/// Buffered targeting result available immediately after the targeting phase.
+///
+/// The existing `TargetingResultEvent` is still triggered for observers. This message lets
+/// ordered systems consume the result before GAS resolution without relying on observers.
+#[derive(Message, Debug, Clone)]
+pub struct TargetingRequestResult {
+    /// Identifier assigned by the targeting queue.
+    pub request_id: TargetingRequestId,
+    /// Entity that submitted the targeting request.
+    pub source: Entity,
+    /// Acquired targets or the concrete targeting failure.
+    pub result: Result<AbilityTargetData, TargetingError>,
+    /// Continuation submission outcome, absent for `EmitResult` or failed acquisition.
+    ///
+    /// Success identifies the GAS request, whose execution result arrives separately.
+    pub continuation: Option<Result<GameplayExecutionRequestId, TargetingContinuationError>>,
 }
 
 impl TargetingResultEvent {

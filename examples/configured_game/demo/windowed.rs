@@ -1,13 +1,16 @@
-use super::GameResult;
-use super::scenario::{CastInput, LaserScenario, collect_report, initialize_scenario, queue_laser};
-use crate::gameplay::position::{PositionPresentation, PositionPresentationPlugin};
-use crate::gameplay::targeting::TargetingPlugin;
+use super::scenario::{LaserScenario, collect_report, initialize_scenario};
 use bevy::prelude::*;
 use bevy::text::FontSize;
-use bevy_gas::{
-    ActiveGameplayAbility, AttributeIdManager, AttributeSet, GameplayAbilitySystemPlugin,
-    GameplayAbilitySystemSet, GameplayExecutionOutcome, GameplayExecutionResult,
+use bevy_gas::{ActiveGameplayAbility, AttributeIdManager, AttributeSet};
+use bevy_gas_template::application::{GameResult, SimulationPlugin, SimulationSettings};
+use bevy_gas_template::gameplay::commands::{
+    AbilityCommand, AbilityCommandOutcome, AbilityCommandPlugin, AbilityCommandResult,
+    GameCommandId, GameCommandQueue,
 };
+use bevy_gas_template::gameplay::position::{
+    LogicalPosition, PositionPresentation, PositionPresentationPlugin,
+};
+use std::collections::VecDeque;
 use std::path::Path;
 
 /// Runs the interactive laser sample until its window closes or Escape is pressed.
@@ -27,23 +30,18 @@ pub fn run_windowed(directory: &Path) -> GameResult<()> {
         ..default()
     }))
     .add_plugins((
-        GameplayAbilitySystemPlugin,
-        TargetingPlugin,
+        SimulationPlugin::default(),
+        AbilityCommandPlugin,
         PositionPresentationPlugin,
     ))
     .insert_resource(ClearColor(Color::srgb(0.025, 0.035, 0.06)))
-    .insert_resource(Time::<Fixed>::from_hz(20.0))
-    .init_resource::<CastInput>()
     .init_resource::<CastStatus>()
     .add_systems(Startup, setup_visuals)
     .add_systems(
-        FixedUpdate,
-        queue_laser.in_set(GameplayAbilitySystemSet::RequestProducers),
-    )
-    .add_systems(
         Update,
-        (read_input, read_execution_results, update_hud).chain(),
-    );
+        (read_execution_results, read_input, update_hud).chain(),
+    )
+    .add_systems(Update, update_cast_indicator);
     initialize_scenario(app.world_mut(), directory)?;
     info!(configuration = %directory.display(), "Loaded game-owned laser configuration");
     let exit = app.run();
@@ -60,11 +58,17 @@ struct StatusText;
 struct CastIndicator;
 
 #[derive(Resource)]
-struct CastStatus(String);
+struct CastStatus {
+    message: String,
+    pending: VecDeque<GameCommandId>,
+}
 
 impl Default for CastStatus {
     fn default() -> Self {
-        Self("Ready. Press Space to cast the configured laser.".into())
+        Self {
+            message: "Ready. Press Space to cast the configured laser.".into(),
+            pending: VecDeque::new(),
+        }
     }
 }
 
@@ -125,13 +129,30 @@ fn setup_visuals(mut commands: Commands, scenario: Res<LaserScenario>) {
 
 fn read_input(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut input: ResMut<CastInput>,
+    scenario: Res<LaserScenario>,
+    positions: Query<&LogicalPosition>,
+    mut commands: ResMut<GameCommandQueue<AbilityCommand>>,
     mut status: ResMut<CastStatus>,
     mut exit: MessageWriter<AppExit>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        input.0 = true;
-        status.0 = "Laser requested; waiting for the next fixed tick.".into();
+        match positions.get(scenario.caster) {
+            Ok(position) => match commands.push(scenario.command(position.0)) {
+                Ok(id) => {
+                    status.pending.push_back(id);
+                    status.message = format!(
+                        "Laser command {} queued for the next fixed tick.",
+                        id.get_value()
+                    );
+                }
+                Err(error) => {
+                    status.message = format!("Could not queue laser: {error}");
+                }
+            },
+            Err(error) => {
+                status.message = format!("Could not read caster position: {error}");
+            }
+        }
     }
     if keyboard.just_pressed(KeyCode::Escape) {
         exit.write(AppExit::Success);
@@ -139,20 +160,34 @@ fn read_input(
 }
 
 fn read_execution_results(
-    mut results: MessageReader<GameplayExecutionResult>,
+    mut results: MessageReader<AbilityCommandResult>,
     mut status: ResMut<CastStatus>,
 ) {
     for result in results.read() {
+        let Some(index) = status
+            .pending
+            .iter()
+            .position(|id| *id == result.command_id)
+        else {
+            continue;
+        };
+        status.pending.remove(index);
         match &result.outcome {
-            GameplayExecutionOutcome::Succeeded => {
-                status.0 =
+            AbilityCommandOutcome::Succeeded => {
+                status.message =
                     "Laser accepted. Its configured tasks control damage and completion.".into();
             }
-            GameplayExecutionOutcome::Rejected(error) => {
-                status.0 = format!("Cast rejected: {error}");
+            AbilityCommandOutcome::TargetingFailed(error) => {
+                status.message = format!("Could not acquire laser targets: {error}");
             }
-            GameplayExecutionOutcome::Failed(error) => {
-                status.0 = format!("Gameplay execution failed: {error}");
+            AbilityCommandOutcome::SubmissionFailed(error) => {
+                status.message = format!("Could not submit laser: {error}");
+            }
+            AbilityCommandOutcome::Rejected(error) => {
+                status.message = format!("Cast rejected: {error}");
+            }
+            AbilityCommandOutcome::Failed(error) => {
+                status.message = format!("Gameplay execution failed: {error}");
                 error!(%error, "Gameplay execution failed");
             }
         }
@@ -164,14 +199,18 @@ fn update_hud(
     manager: Res<AttributeIdManager>,
     mut attributes: Query<&mut AttributeSet>,
     active: Query<&ActiveGameplayAbility>,
+    settings: Res<SimulationSettings>,
     status: Res<CastStatus>,
     mut hud: Query<&mut Text, With<StatusText>>,
-    mut indicator: Query<&mut Visibility, With<CastIndicator>>,
 ) {
     let display = match collect_report(&scenario, &manager, &mut attributes, &active) {
         Ok(report) => format!(
-            "LASER / LEVEL 5\n\nCaster Mana: {:.0}       Target Health: {:.0}\nActive abilities: {}       Fixed ticks: 20/s\n\n{}",
-            report.caster_mana, report.target_health, report.active_abilities, status.0
+            "LASER / LEVEL 5\n\nCaster Mana: {:.0}       Target Health: {:.0}\nActive abilities: {}       Fixed ticks: {:.0}/s\n\n{}",
+            report.caster_mana,
+            report.target_health,
+            report.active_abilities,
+            settings.timestep().as_secs_f64().recip(),
+            status.message
         ),
         Err(error) => format!("Could not read gameplay state: {error}"),
     };
@@ -180,6 +219,12 @@ fn update_hud(
             text.0.clone_from(&display);
         }
     }
+}
+
+fn update_cast_indicator(
+    active: Query<&ActiveGameplayAbility>,
+    mut indicator: Query<&mut Visibility, With<CastIndicator>>,
+) {
     for mut visibility in &mut indicator {
         *visibility = if active.is_empty() {
             Visibility::Hidden

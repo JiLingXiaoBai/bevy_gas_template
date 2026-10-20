@@ -12,10 +12,13 @@
 - 游戏配置使用本包 `config`，GAS 类型从 `bevy_gas` 导入；当前本地 GAS 已移除配置层，游戏配置由本包独立维护。
 - 默认保留本地 path 依赖；不要未经用户要求改成 Git。GitHub 模板使用者需另行取得同级 GAS，或自行调整 path。
 - 只有用户选择 Git 依赖时才要求真实已推送的固定提交；本地开发不要求提交或推送。依赖变化后同步锁文件并完成回归。
-- 当前导表支持 Windows x64；首次确认同级 GAS 存在，再执行 setup.ps1、cargo fetch --locked、config/export.ps1 和游戏。
-- GitHub 模板不会自动同步后续修改或替换 crate 名；改名时同步 Cargo package/default-run、源码/测试导入、文档和技能上下文。
+- 首次确认同级 GAS 存在，cargo fetch --locked 后可直接 cargo run 启动基础程序。配置演示或改表才需要 Windows x64 的 Luban setup.ps1 和 config/export.ps1。
+- GitHub 模板不会自动同步后续修改或替换 crate 名；改名时同步 Cargo package/default-run、源码/测试/保留的示例导入、文档和技能上下文。
 - Excel/Schema 修改后运行 `pwsh -NoProfile -File config/export.ps1`；不要手改生成代码或清单。
 - 导表生成 `config/generated/` 和 `assets/config/`；使用本项目的校验程序和固定 Luban 工具链。
-- 集成测试按领域放入 `tests/config_test/`、`tests/gameplay_test/`，由同名顶层测试门面加载。
+- 共享装配保留在 `application`；自己的业务从 `src/game.rs`、`src/game/plugin.rs` 的 GamePlugin 扩展，main 已注册共享模拟和 GamePlugin，不重复安装 GAS。
+- main 是不加载配置或演示的基础启动器。无窗口默认持续运行，启动检查须显式传入 `--ticks N`；达到 tick 数后请求退出，不作为精确步进 API。
+- 配置演示及专用测试放在 `examples/configured_game/`，不从 application/gameplay 公开演示入口。整个 examples 可删除，基础代码和 tests 不得反向引用；保留 application 与 config/generated。
+- 集成测试按领域放入 `tests/config_test/`、`tests/gameplay_test/`，由同名顶层测试门面加载。示例专用测试留在示例目录，用 cargo test --examples 显式运行。
 - 修改代码后及时更新 `.docs/`；只做与需求有关的修改。
-- 完成后运行 cargo fmt、cargo clippy --all-targets --all-features -- -D warnings、cargo test、cargo test --all-features、cargo build，以及 cargo run -- --headless。
+- 完成后运行 cargo fmt、cargo clippy --all-targets --all-features -- -D warnings、cargo test、cargo test --all-features、cargo build，以及 cargo run -- --headless --ticks 3；同时检查无默认 feature 的 Clippy、test 和 cargo run --no-default-features -- --ticks 3。保留 examples 时导表后补充 cargo test --all-features --examples、cargo test --no-default-features --examples，以及 cargo run --example configured_game -- --headless。

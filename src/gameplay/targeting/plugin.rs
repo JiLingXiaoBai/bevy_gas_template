@@ -1,7 +1,8 @@
 use super::spatial_index::{remove_discarded_target_position, remove_discarded_targetable};
 use super::{
-    TargetingRequestQueue, TargetingSpatialIndex, process_targeting_request_queue_system,
-    sync_targeting_spatial_index_system, targeting_request_queue_has_work,
+    TargetingRequestQueue, TargetingRequestResult, TargetingSpatialIndex,
+    process_targeting_request_queue_system, sync_targeting_spatial_index_system,
+    targeting_request_queue_has_work,
 };
 use crate::gameplay::{GameplaySchedulePlugin, GameplaySet};
 use bevy::prelude::*;
@@ -21,6 +22,7 @@ impl Plugin for TargetingPlugin {
             app.add_plugins(GameplaySchedulePlugin);
         }
         app.init_resource::<TargetingRequestQueue>()
+            .add_message::<TargetingRequestResult>()
             .init_resource::<TargetingSpatialIndex>()
             .add_observer(remove_discarded_targetable)
             .add_observer(remove_discarded_target_position)

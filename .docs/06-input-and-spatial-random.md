@@ -11,6 +11,8 @@
 | `gameplay::randoms` | `SpatialRandom` | 使用独立随机流构造 Bevy 随机值并进行形状采样 |
 
 类型从上述领域门面显式导入；GAS 的 prelude 和 crate root 不再提供输入绑定兼容导出。
+需要跨帧缓冲和命令结果关联时，可组合独立的 `gameplay::commands`，见
+[08 — 游戏命令与技能结果关联](08-game-commands.md)。它不改变本页绑定组件和独立随机流的职责。
 
 ## 输入绑定职责与数据流
 

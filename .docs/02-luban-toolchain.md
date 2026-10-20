@@ -30,19 +30,21 @@ Safe Rust 解码、生成类型和 GAS 适配代码位于游戏 `bevy_gas_templa
 | `config/templates/rust-bin/`            | 项目维护的 Rust Result 解码模板                                                    | 提交           |
 | `src/config.rs`、`src/config/`          | 提供二进制读取、解码和 GAS 编译；包校验、完整业务校验及离线工具默认随 feature 启用 | 提交           |
 | `src/bin/gas_config.rs`                 | 由 `config-validation` 启用的 CLI                                                  | 提交           |
-| `src/gameplay/`                        | 位置/空间索敌模块，以及窗口与无窗口共享的场景                                                                 | 提交           |
+| `src/gameplay/`                        | 可复用的位置、空间索敌、输入、随机与命令模块                                      | 提交           |
+| `src/application/`、`src/game/`        | 共享模拟装配与自己的游戏业务入口                                                 | 提交           |
+| `examples/configured_game/`            | 配置演示的窗口、无窗口验收及专用测试                                              | 可删除的示例   |
 | `config/LICENSE.Luban`                  | 初始示例文件的上游 MIT 许可证                                                      | 提交           |
 | `config/generated/`                     | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，无独立 Cargo 清单                      | 提交，导表生成 |
 | `assets/config/`                           | 八张 GAS 表的二进制数据及 `manifest.json`                                          | 忽略，导表生成 |
 | `tools/luban/.cache/`                   | 三种 Luban 工具的下载归档、已安装工具及临时验证产物                                | 忽略           |
 
-首次使用需要 Windows x64 与本页列出的工具；先另行准备同级 GAS 源码，再依次准备工具链与锁定的其他 Cargo 依赖，随后导表运行。以下命令在新仓库根目录执行：
+首次使用需要 Windows x64 与本页列出的工具；先另行准备同级 GAS 源码，再依次准备工具链与锁定的其他 Cargo 依赖，随后导表运行配置演示。基础程序无需 Luban 或导表，直接 `cargo run`；以下演示命令在新仓库根目录执行：
 
 ```powershell
 pwsh -NoProfile -File tools/luban/setup.ps1
 cargo fetch --locked
 pwsh -NoProfile -File config/export.ps1
-cargo run
+cargo run --example configured_game
 ```
 
 之后修改 Excel 或定义文件，只需重新执行 `config/export.ps1`。
@@ -78,7 +80,7 @@ Cargo 的 `target/` 构建缓存、`assets/config/` 和工具 `.cache/` 均由 G
 删除 `.cache` 不会删除配置源文件，重新执行准备和导表即可恢复工具及产物。
 
 本仓库是游戏，导表成功后直接发布二进制到本游戏 `assets/config/`。部署到其他机器时，
-将该目录作为游戏资源一并部署；可通过 `--config` 为游戏入口指定实际目录。
+需要配置的游戏应将该目录作为资源一并部署；配置演示可通过 `cargo run --example configured_game -- --config <directory>` 指定目录。基础启动器不加载配置，自己的游戏目录策略由游戏实现。
 默认运行时需一并部署匹配的 `manifest.json`；`--no-default-features` 最小运行时只需 `.bytes`，不读取清单。
 导表入口始终启用该 feature，在发布前完成包校验与业务校验，生成协议和模板保持一致。
 

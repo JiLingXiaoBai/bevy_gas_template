@@ -1,14 +1,15 @@
-use super::GameResult;
-use crate::config::{AbilityId, ConfiguredAbilities, compile_catalog, grant_ability, load_tables};
-use crate::gameplay::position::LogicalPosition;
-use crate::gameplay::targeting::{
-    Targetable, TargetingContinuation, TargetingDefinition, TargetingInput, TargetingRequestQueue,
-};
 use bevy::prelude::*;
 use bevy_gas::{
-    AbilityActivationContext, AbilitySpecHandle, ActiveGameplayAbility, AttributeId,
-    AttributeIdManager, AttributeSet, GameplayAbilitySystemBundle, GameplayExecutionQueue,
+    AbilitySpecHandle, ActiveGameplayAbility, AttributeId, AttributeIdManager, AttributeSet,
+    GameplayAbilitySystemBundle,
 };
+use bevy_gas_template::application::GameResult;
+use bevy_gas_template::config::{
+    AbilityId, ConfiguredAbilities, compile_catalog, grant_ability, load_tables,
+};
+use bevy_gas_template::gameplay::commands::{AbilityCommand, GameCommandId, GameCommandQueue};
+use bevy_gas_template::gameplay::position::LogicalPosition;
+use bevy_gas_template::gameplay::targeting::{Targetable, TargetingDefinition, TargetingInput};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -33,8 +34,16 @@ pub(super) struct LaserScenario {
     pub targeting: Arc<TargetingDefinition>,
 }
 
-#[derive(Resource, Default)]
-pub(super) struct CastInput(pub bool);
+impl LaserScenario {
+    pub(super) fn command(&self, origin: Vec3) -> AbilityCommand {
+        AbilityCommand::targeted(
+            self.caster,
+            self.ability,
+            TargetingInput::new(origin, Vec3::X).with_explicit_target(self.target),
+            Arc::clone(&self.targeting),
+        )
+    }
+}
 
 pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameResult<()> {
     let tables = load_tables(directory).map_err(|error| {
@@ -101,31 +110,13 @@ pub(super) fn initialize_scenario(world: &mut World, directory: &Path) -> GameRe
 }
 
 pub(super) fn queue_laser(
-    mut input: ResMut<CastInput>,
     scenario: Res<LaserScenario>,
     positions: Query<&LogicalPosition>,
-    mut execution: ResMut<GameplayExecutionQueue>,
-    mut targeting: ResMut<TargetingRequestQueue>,
-) {
-    if !std::mem::take(&mut input.0) {
-        return;
-    }
-    let Ok(position) = positions.get(scenario.caster) else {
-        error!("cannot request laser targeting without the caster's logical position");
-        return;
-    };
-    let chain = execution.new_root_chain(scenario.ability);
-    targeting.push_request(
-        scenario.caster,
-        TargetingInput::new(position.0, Vec3::X).with_explicit_target(scenario.target),
-        Arc::clone(&scenario.targeting),
-        TargetingContinuation::activate_ability(
-            scenario.ability,
-            AbilityActivationContext::direct(scenario.caster, chain),
-        ),
-    );
+    mut commands: ResMut<GameCommandQueue<AbilityCommand>>,
+) -> GameResult<GameCommandId> {
+    let position = positions.get(scenario.caster)?;
+    Ok(commands.push(scenario.command(position.0))?)
 }
-
 pub(super) fn read_report(
     scenario: Res<LaserScenario>,
     manager: Res<AttributeIdManager>,

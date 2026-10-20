@@ -10,9 +10,11 @@
 - [05 — 空间、索敌与 GAS 接入](05-spatial-targeting.md)
 - [06 — 输入绑定与空间随机](06-input-and-spatial-random.md)
 - [07 — 架构与插件组合](07-architecture-and-composition.md)
+- [08 — 游戏命令与结果反馈](08-game-commands.md)
+- [09 — 从模板开始新游戏](09-starting-a-game.md)
 - [项目运行与导表命令](../README.md)
 - [协作与编码规范](../AGENTS.md)
 
-首次阅读顺序：`src/main.rs` → `src/application.rs` → `src/gameplay.rs` / `src/config.rs`。
+首次阅读顺序：`src/main.rs` → `src/game.rs` / `src/game/plugin.rs` → `src/application.rs` → 按需阅读 `src/gameplay.rs` / `src/config.rs`。配置演示独立位于 `examples/configured_game/`，可以整体删除。
 修改技能内容时维护本模板 `config/`；GAS 保留技能/效果执行和目标结果契约；配置、输入绑定、空间随机、空间索敌与表现由本模板维护。
-首次创建游戏先阅读 04，准备与游戏同级的 GAS 源码，再按项目 README 准备工具、导表和运行。
+首次创建游戏先阅读 04 和 09，准备与游戏同级的 GAS 源码后即可运行基础启动器。配置演示和修改表格才需要按 README 准备 Luban 工具并导表。

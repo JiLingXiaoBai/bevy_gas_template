@@ -1,19 +1,11 @@
-//! Sample application composition, separate from reusable gameplay and configuration.
+//! Shared simulation composition and application startup utilities.
 //!
-//! The headless entry runs with the base Bevy dependencies. The default `windowed` feature
-//! enables the interactive presentation; calling its entry without that feature returns an
-//! actionable error. Applications choose their own composition when reusing `gameplay`.
+//! [`SimulationPlugin`] installs the same simulation settings and GAS runtime for
+//! windowed games, headless applications, and tests. This module loads no configuration
+//! and contains no sample scenes; optional demonstrations live entirely in `examples/`.
 
 mod common;
-mod headless;
-mod scenario;
-#[cfg(feature = "windowed")]
-mod windowed;
+mod simulation;
 
-#[cfg(not(feature = "windowed"))]
-pub use common::run_windowed;
 pub use common::{GameResult, default_config_directory};
-pub use headless::run_headless;
-pub use scenario::LaserReport;
-#[cfg(feature = "windowed")]
-pub use windowed::run_windowed;
+pub use simulation::{SimulationPlugin, SimulationSettings, SimulationSettingsError};

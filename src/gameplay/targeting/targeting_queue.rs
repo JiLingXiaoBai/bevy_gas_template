@@ -7,5 +7,6 @@ mod request;
 pub use processing::{process_targeting_request_queue_system, targeting_request_queue_has_work};
 pub use queue::TargetingRequestQueue;
 pub use request::{
-    TargetingContinuation, TargetingInput, TargetingRequestId, TargetingResultEvent,
+    TargetingContinuation, TargetingContinuationError, TargetingInput, TargetingRequestId,
+    TargetingRequestResult, TargetingResultEvent,
 };

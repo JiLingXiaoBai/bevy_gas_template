@@ -21,7 +21,9 @@
 | `config/generated/`            | 自动生成的 `mod.rs`、`gas.rs` 等 Rust 模块，包含 DTO、表索引与结构描述 |
 | `assets/config/`                  | 导出配置包，包括八张 GAS 表的 bytes 与 manifest.json；Git 忽略         |
 | `src/bin/gas_config.rs`        | 启用 `config-validation` 后可用的配置预览与导表校验 CLI                |
-| `src/gameplay/`               | 位置、空间索敌、共享场景、窗口演示与无窗口验收                                         |
+| `src/gameplay/`               | 可复用的位置、空间索敌、输入、随机与命令能力                            |
+| `src/application/`、`src/game/` | 共享模拟装配与自己的游戏业务入口                                      |
+| `examples/configured_game/`   | 可删除的配置演示、窗口与无窗口验收及其测试                              |
 | `tools/luban/.cache/export/`   | 每次导表的临时单包项目、验证产物与发布备份                             |
 
 导表产物包含上述八张 GAS 表的八个 `.bytes` 文件和 `manifest.json`。
@@ -73,20 +75,20 @@ rust-analyzer 无需额外启用 feature 即可分析运行时接口的定义与
 
 ## 日常使用
 
-当前导表支持 Windows x64；首次先准备同级 GAS 源码，再在新仓库根目录依次运行：
+当前导表支持 Windows x64；首次运行配置演示先准备同级 GAS 源码，再在新仓库根目录依次运行。基础 `cargo run` 不加载表格，无需完成这些导表步骤：
 
 ```powershell
 pwsh -NoProfile -File tools/luban/setup.ps1
 cargo fetch --locked
 pwsh -NoProfile -File config/export.ps1
-cargo run
+cargo run --example configured_game
 ```
 
 预览配置或执行无窗口验收：
 
 ```powershell
 cargo run --bin gas-config -- inspect assets/config 1001 3
-cargo run -- --headless
+cargo run --example configured_game -- --headless
 ```
 
 首次导表需要已安装的 Rust 工具链及依赖缓存。导表使用锁文件和离线构建；
@@ -256,10 +258,11 @@ Provider 必须整批合计检查。配置编译器按每个技能实际引用�
 表格不创建背包，也不自动安装 Provider；名称格式校验不代表游戏存在对应道具，未知资源仍由 Provider 拒绝。运行时仍需：
 
 ```rust
-app.add_plugins(
-    GameplayAbilitySystemPlugin::with_additional_costs::<InventoryCosts>(),
-);
+SimulationPlugin::new(settings).with_additional_costs::<InventoryCosts>()
 ```
+
+同时在游戏插件初始化 Provider 所需的背包组件或资源，不再重复安装 GAS。自行组合底层
+插件的应用仍可使用 `GameplayAbilitySystemPlugin::with_additional_costs::<InventoryCosts>()`。
 
 `InventoryCosts` 是游戏实现的 `AdditionalCostProvider`，实际检查、扣减和补偿
 `context.source` 的库存。默认 Provider 遇到非空成本会拒绝激活。实现参考
@@ -274,7 +277,7 @@ cargo run --features config-validation --bin gas-config -- inspect assets/config
 cargo test --test config_test configured_costs_reach_the_inventory_provider_when_the_granted_ability_activates
 ```
 
-配置 CLI 可预览技能 1002。当前游戏入口演示技能 1001，尚未安装背包 Provider，
+配置 CLI 可预览技能 1002。`examples/configured_game/` 演示技能 1001，尚未安装背包 Provider，
 因此不会直接运行 InventoryBomb。上面的集成测试使用游戏自己的生成类型与编译器，
 验证配置的整批额外消耗确实交给 Provider 检查、扣减和补偿；接入背包玩法时在游戏中实现并安装 Provider。
 
@@ -409,9 +412,9 @@ cargo build
 ```
 
 `cargo test` 默认即验证包校验和完整业务校验；`cargo test --all-features` 与默认构建一致，仍保留为回归口径。
-配置测试通过 `tests/config_test.rs` 加载 `tests/config_test/`；位置、索敌与场景集成测试
+配置测试通过 `tests/config_test.rs` 加载 `tests/config_test/`；位置、索敌、命令与共享模拟集成测试
 由 `tests/gameplay_test.rs` 加载 `tests/gameplay_test/`。
-这些测试自建表数据和临时配置包，不依赖导表生成的 `assets/config/`。
+这些基础测试自建表数据和临时配置包，不依赖导表生成的 `assets/config/` 或 examples。配置演示专用测试留在 `examples/configured_game/`，导表后使用 `cargo test --all-features --examples` 和 `cargo test --no-default-features --examples` 显式执行。
 配置变更使用完整导表验证候选 Rust 模块、真实二进制包和 GAS 语义，再运行上面的
 配置预览、无窗口验收与额外成本集成测试检查实际行为。修改 Excel、schema 或模板后，必须重新导表并同步提交
 源文件和生成 Rust 模块；不手动修改 manifest 来掩盖结构或数据变化。
