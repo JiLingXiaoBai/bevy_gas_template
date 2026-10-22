@@ -79,6 +79,42 @@ workspace/
 
 新增业务模块遵循“门面文件 + 同名目录”，在门面显式重导出公开项。代码注释使用英文；知识库使用中文。运行时代码通过 `Result`、`?`、`match`、`let ... else` 处理失败，不使用 `unwrap()`、`expect()`、`panic!()`。
 
+### 公开模块速查
+
+以下按实际可导入的门面列出模块。表内路径省略 crate 前缀：GAS 使用 `bevy_gas::`，模板使用 `bevy_gas_template::`。私有实现文件虽可用于阅读源码，却不能作为依赖方的导入路径。
+
+| GAS 入口 | 主要公开能力 | 本文位置 |
+| --- | --- | --- |
+| `gas::gameplay_tags` | 标签注册、容器、位图、TagRequirements | 第 9 节 |
+| `gas::attributes` | 属性注册、Hot/Cold 存储、快照、聚合器和重算 | 第 10 节 |
+| `gas::modifiers` | 修改操作、幅度公式、求值上下文、贡献来源 | 第 11 节 |
+| `gas::gameplay_effects` | 效果定义、Spec、活动记录、读写参数、应用、移除、免疫和诊断 | 第 4、12 节 |
+| `gas::gameplay_abilities` | 技能定义、Spec、激活数据/上下文、任务、链、外部成本定义 | 第 13、14、16 节 |
+| `gas::ability_system` | ASC、Bundle、预检、激活/提交/结束、成本 Provider | 第 4、13 节 |
+| `gas::gameplay_execution` | 跨类型 FIFO、请求、结果、错误与 resolver | 第 5、15 节 |
+| `gas::gameplay_targeting` | 目标命中、集合与非空激活目标契约 | 第 16 节 |
+| `gas::settings` | 编译期容量与链深限制 | 第 20 节 |
+| `gas::prelude` / `prelude` | 常用类型的显式重导出集合 | 第 4 节 |
+| `gas` / crate 根的插件重导出 | GAS 插件组、Runtime、Tag、Random、UniqueName 插件和阶段枚举 | 第 3、5 节 |
+| crate 根的 `Random`、`UniqueName`、`UniqueNamePool` 等 | 随机与字符串驻留设施 | 第 18 节 |
+
+`runtime_plugin`、`randoms`、`unique_names` 是 GAS 的私有实现模块，使用上表的公开重导出；例如 `bevy_gas::Random` 可用，`bevy_gas::randoms::Random` 不可用。根模块还保留部分领域模块的兼容重导出，新代码可优先使用上述领域路径。
+
+| 模板入口 | 主要公开能力 | 本文位置 |
+| --- | --- | --- |
+| `application` | SimulationSettings、SimulationPlugin、GameResult、默认配置目录 | 第 2、3、7 节 |
+| `game` | 当前游戏的 GamePlugin 扩展点 | 第 1、3 节 |
+| `config` | 加载、编译、Catalog、授予/撤销、包校验与预览工具 | 第 6、7 节 |
+| `config::generated` / `config::generated::gas` | 自动生成的 Tables、行类型和枚举 | 第 6 节 |
+| `gameplay` | GameplaySet 与 GameplaySchedulePlugin | 第 3、5 节 |
+| `gameplay::ability_input` | 逻辑动作绑定与绑定错误 | 第 17 节 |
+| `gameplay::commands` | 泛型命令 FIFO、技能适配器与终态反馈 | 第 17 节 |
+| `gameplay::position` | 权威位置、表现组件/插件、历史捕获与同步系统 | 第 17 节 |
+| `gameplay::targeting` | 目标规则、参数、空间索引、请求和结果 | 第 16 节 |
+| `gameplay::randoms` | 独立 SpatialRandom | 第 18 节 |
+
+模板的 `gameplay::schedule` 和 `gameplay::spatial` 不对外公开；分别通过 `gameplay` 的重导出和 `gameplay::targeting` 使用。`config` 的 compiler、loading、package、inspection、decoding 也属于内部拆分，公开函数集中从 `config` 导入。
+
 ## 2 安装与运行
 
 ### 先运行基础程序
@@ -184,6 +220,26 @@ fn configure_game(app: &mut App) {
 
 `GameplayAbilitySystemRuntimePlugin` 是底层运行时插件，不等同于完整插件组。通常只在需要自定义装配时直接使用。显式安装调度、索敌及上层命令插件时，先装依赖插件，避免上层已自动安装后再次重复添加。
 
+### 通过代码配置模拟
+
+自建 App、测试或服务端可以不经过 main 的命令行解析，直接使用验证后的 SimulationSettings：
+
+```rust
+use bevy::prelude::*;
+use bevy_gas_template::application::{GameResult, SimulationPlugin, SimulationSettings};
+
+fn create_simulation() -> GameResult<App> {
+    let settings = SimulationSettings::try_from_hz(30.0)?.with_random_seed(42);
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, SimulationPlugin::new(settings)));
+    Ok(app)
+}
+```
+
+已有 Duration 时用 `SimulationSettings::new(timestep)`；零时间步返回 ZeroTimestep，不合法或无法表示为非零 Duration 的频率返回 InvalidTickRate。`timestep()` 和 `random_seed()` 读取设置。
+
+该资源记录启动设置。启动后仅修改 `SimulationSettings` 不会自动更新 `Time<Fixed>` 或重置 Random；运行中调整时钟/随机流需要游戏显式实现，并同步考虑 tick 配置与回放记录。
+
 ### 功能开关
 
 | Cargo 选项 | 窗口依赖 | 完整配置校验和 gas-config |
@@ -223,7 +279,7 @@ GAS 将可共享的内容与每次运行的状态分离：
 | `attributes` | `AttributeSet` | Health、Mana 等属性与聚合状态 |
 | `active_effects` | `ActiveGameplayEffects` | 该角色上的持续效果 |
 
-创建 Bundle 不会自动初始化 Health/Mana，也不会授予技能。游戏仍需登记属性、初始化值、授予技能，并按需要添加 `LogicalPosition`、`Targetable`、阵营等组件。
+先安装 GAS 运行时，再向 World 插入 Bundle 或 ActiveGameplayEffects；后者的插入 hook 需要运行时分配存储身份，先插组件再装插件不会自动补建身份，持续效果可能报 UninitializedActiveEffectStorage。创建 Bundle 不会自动初始化 Health/Mana，也不会授予技能。游戏仍需登记属性、初始化值、授予技能，并按需要添加 `LogicalPosition`、`Targetable`、阵营等组件。
 
 只做分类的实体可以单独挂标签，只存数值的实体可以单独挂属性；这些组件不会反向自动补齐活跃效果容器。需要持续效果时应提供完整的目标组件组合。
 
@@ -243,6 +299,15 @@ GAS 将可共享的内容与每次运行的状态分离：
 ### 公共参数的边界
 
 `EffectSystemParams` 用于效果准备、施加和移除，包含效果所需的查询和资源。`AbilitySystemParams<P>` 在它之上加入 ASC、活跃技能、Commands 和额外成本 Provider。纯效果系统优先声明前者，避免让简单伤害逻辑依赖完整技能编排。
+
+| 参数 | 使用场景 | 访问边界 |
+| --- | --- | --- |
+| `EffectSystemParams` | 正式准备、应用、移除效果 | 可变属性/标签/效果查询和随机流 |
+| `EffectReadOnlyParams` | 只读公式求值、属性/效果展示 | 只读注册表与查询，不借用 RNG，不执行应用 |
+| `AbilitySystemParams<P>` | 技能激活、Commit、end/cancel | 包含 EffectSystemParams，另加 ASC、活跃实例、Commands、Provider |
+| `AbilityActivationCheckParams<P>` | UI/AI 只读预检 | 包含 EffectReadOnlyParams、只读 ASC 和 Provider::ReadOnly |
+
+不要在同一个 System 中同时声明 `AbilitySystemParams` 与另一个 `EffectSystemParams`，或额外声明与其内部可变 Query 重叠的 AttributeSet/Tags 查询。组合参数不会解除 Bevy 的借用冲突；优先复用 `params.effects`/内部查询，或拆成有明确顺序的系统。读取展示可选只读参数；需要最新已收敛结果时仍要正确排序。
 
 `prelude` 只导出常用项。错误类型、完整任务定义和诊断 API 可从 `bevy_gas::gas::<领域>` 或 crate 根显式导入；不要假定 `prelude::*` 包含全部 API。
 
@@ -294,7 +359,7 @@ FixedUpdate
 
 持续、周期、冷却和任务等待都以 fixed tick 为单位。默认 20 Hz 时，1 tick 是 0.05 秒，20 tick 是 1 秒，180 tick 是 9 秒。改成 60 Hz 后，同一个 180 tick 变为 3 秒，表格不会自动换算。
 
-确定性测试可以像现有示例一样调用 `world.run_schedule(FixedUpdate)` 明确推进 N 次。这与基础启动器的 `--ticks` 退出检查不同。显示剩余秒数时由 UI 使用当前 fixed timestep 转换，玩法内部继续使用整数 tick。
+纯 GAS 确定性测试可以像现有示例一样调用 `world.run_schedule(FixedUpdate)` 明确执行 N 次该调度。这不会自动推进 Bevy 的 Time，也不运行 FixedFirst、FixedLast 或 PostUpdate，因此不代表完整的模拟帧；输入与位置插值测试应通过手动时间策略驱动 `app.update()`，或显式安排所有依赖阶段。它也与基础启动器的 `--ticks` 退出检查不同。显示剩余秒数时由 UI 使用当前 fixed timestep 转换，玩法内部继续使用整数 tick。
 
 ## 6 配置从 Excel 到运行时
 
@@ -364,6 +429,23 @@ World 必须先安装 GAS。`compile_catalog` 先准备引用、公式和时间�
 同名属性的 Hot/Cold 区域必须一致，同名标签的完整继承关系必须一致。编译器按稳定顺序登记，而不是依赖 HashMap 或 Excel 行顺序。每个 EffectId 只创建一个 Arc，成本、冷却、任务引用复用它；不同 EffectId 不按内容去重。
 
 当前适合启动时加载，未提供战斗中 Catalog 热替换。给现有战斗直接换 Arc 可能改变叠层身份、标签和 Handle 映射，不能把重新编译当作现成的热更新协议。
+
+### 生成表和配置工具 API
+
+`config::generated::Tables` 是解码后的策划数据，`GameplayCatalog` 是已编译的运行时定义，两者不是同一个资源。各表通过 `tables.tb_ability.get(&1001)`、`tables.tb_attribute.get("Health")` 等读取，`iter()`、`len()`、`is_empty()` 遍历或统计。`iter()` 保留导出数据的行顺序，不保证按主键排序；需要按 ID 排序时由工具或游戏显式处理。`get` 返回行 Arc 的引用；`TbAbility::from_rows` 等可在测试/工具中构造表并拒绝重复主键，不能替代完整玩法校验。生成行不会自动注册属性或授予技能。
+
+| 从 `config` 导入的 API | 返回值与用途 | feature |
+| --- | --- | --- |
+| `read_package(directory)` | `Result<BTreeMap<String, Vec<u8>>, ConfigError>`，键为生成表名，不含 `.bytes` 后缀 | 始终可用；有校验时返回已验证的同一批 buffers |
+| `validate_tables(&tables)` | `Result<(), ConfigError>`，不修改 World，检查完整制作规则 | config-validation |
+| `describe_ability(&tables, id)` | `Result<String, ConfigError>`，验证数据并生成 1 级预览 | config-validation |
+| `describe_ability_at_level(&tables, id, level)` | 同上，指定等级，包含效果、成本、索敌与有序时间线 | config-validation |
+| `package_schema_hash()` | 当前生成结构的摘要 String，可标识读取代码的 Schema | config-validation |
+| `write_package_manifest(directory)` | `Result<(), ConfigError>`，为暂存的完整预期表集合写清单 | config-validation |
+
+`validate_tables` 不读取现有 World 的注册表，无法发现已有注册容量或同名区域/继承冲突；最终还须 `compile_catalog`。预览函数本身已验证表，不必在每次预览前重复调用 validate_tables。
+
+清单生成不会解码数据或证明玩法合法，完整导表还要读取并编译验证。`gas-config write-manifest <directory>` 是导表工具步骤，不是修复损坏发布包的捷径；日常仍运行 `config/export.ps1`。
 
 ### 校验边界
 
@@ -668,6 +750,8 @@ fn apply_stun_tag(
 
 容器常用接口为 `add_tag`、`add_tags`、`remove_tag`、`remove_tags`、`has_tag`、`has_all`、`has_any`。`TagRequirements::new(require_all, ignore_any)` 表达“全部必需标签存在，并且任意禁止标签都不存在”。
 
+空 TagRequirements 总是通过；非空需求遇到缺失的 GameplayTagContainer 时失败，即使只设置了 ignore_any。`passes` 检查可选实体容器，`passes_tag_slice` 检查定义上的标签列表。需求本身使用明确配置的标签位，实体/候选侧包含祖先，所以要求 State.Control 可以匹配 State.Control.Stunned，反向不成立。
+
 ### 层级和引用计数原理
 
 全局每个标签分配一个位。当前上限 512，包括自动建立的父标签，位图为 8 个 `u64`。登记 `State.Control.Stunned` 会占用 State、State.Control 和完整名称的位。
@@ -737,6 +821,8 @@ Base 是没有持续修饰时的基础值，Instant 修改直接改变它。Curr
 | `make_snapshot(&mut self, entity)` | 先重算脏属性，再捕获整组属性快照 |
 
 `Ok(None)` 表示 ID 合法但该实体未初始化；非法 ID 则返回错误。业务需要区分这两个情形，不能把所有缺失都默认成 0。
+
+数值合法性检查主要针对 incoming modifier 幅度及叠层缩放，不保证任何初始值或最终聚合值都有限。`initialize_attribute` 不额外拒绝非有限初值，多个有限值运算也可能溢出；游戏应限制初值、公式和聚合范围。
 
 ### 默认聚合公式
 
@@ -818,6 +904,45 @@ impl ModifierMagnitudeCalculation for AttackDamage {
 如果希望弹体命中仍使用发射瞬间攻击力，游戏应捕获并传播 source snapshot，公式明确读取它。只创建快照但公式仍调用 `source_attribute`，不会自动实现快照伤害。
 
 属性修改幅度公式返回 NaN/Infinity 会在效果应用或属性修改入口被拒绝。定义和 Spec 构造本身不保证应用成功；自定义公式必须明确处理不存在的属性和目标。
+
+### 显式传递来源快照
+
+快照的完整链路是“在选定时刻捕获 → 保存到 payload/context → 公式显式读取”。例如弹体发射时捕获攻击力，命中时仍使用该副本：
+
+```rust
+use bevy::prelude::Entity;
+use bevy_gas::{
+    AttributeId, AttributeSet, EffectPayload, ModifierEvaluationContext,
+    ModifierMagnitudeCalculation,
+};
+
+fn capture_payload(source: Entity, attributes: &mut AttributeSet) -> EffectPayload {
+    EffectPayload::new(source, None, 1).with_source_snapshot(attributes.make_snapshot(source))
+}
+
+struct SnapshotDamage {
+    attack: AttributeId,
+    coefficient: f32,
+}
+
+impl ModifierMagnitudeCalculation for SnapshotDamage {
+    fn calculate(&self, context: &dyn ModifierEvaluationContext) -> f32 {
+        let Some(snapshot) = context.source_snapshot() else {
+            return 0.0;
+        };
+        let Ok(Some(attack)) =
+            snapshot.get_current_value(context.attribute_id_manager(), self.attack)
+        else {
+            return 0.0;
+        };
+        -attack * self.coefficient
+    }
+}
+```
+
+在捕获时调用 `capture_payload`，将返回值保存在游戏弹体状态中，命中时交给 `queue.push_application(target, effect, payload)`。该例明确选择缺少快照或攻击属性时返回 0。技能路径可用 `AbilityActivationContext::with_source_snapshot` 传递同类快照，再由后续效果继承。
+
+`AttributeSetSnapshot` 提供 `get_current_value`、`get_base_value` 和 `get_source_entity`，使用同一属性注册环境解释 ID。它只复制当时的属性数值，不复制标签、效果列表或世界状态，也不会自动刷新。仅把 Snapshot 作为 Component 挂到实体上，不会让 GAS 自动将它注入效果；仍需通过 payload/context 显式提供。
 
 ## 12 Gameplay Effects
 
@@ -904,6 +1029,16 @@ fn apply_hit_now(
 
 `prepare_gameplay_effect` 和 `execute_gameplay_effect_plan` 提供分阶段 API。Plan 应紧接着执行；执行阶段不会重新掷概率或重新做全部应用条件、免疫、叠层决策，不能将它长期缓存当作预约施法。
 
+同步调用可用 `GameplayEffectApplicationError::is_rejection()` 区分正常玩法拒绝与需要排查的问题，不应把所有 Err 都忽略或都视作运行故障：
+
+| 错误 | 含义 |
+| --- | --- |
+| ProbabilityRejected、ApplicationRequirementsNotMet、BlockedByImmunity、StackOverflowRejected | 正常拒绝，is_rejection 为 true |
+| InvalidProbability、InvalidDuration、NonFiniteModifier | 定义、公式或数值输入不合法 |
+| MissingAttributeSet、MissingAttribute、MissingTagContainer、MissingActiveGameplayEffects | 目标组件或属性初始化不足 |
+| UninitializedActiveEffectStorage | 容器插入时没有可用运行时存储身份 |
+| GameplayTag、AttributeId、ActiveEffectCapacityExceeded | 注册、引用或存储容量错误 |
+
 ### 周期和到期边界
 
 `EffectPeriodTicks::new(magnitude, execute_on_applied)` 配置周期。正周期效果的每次 pulse 都修改 Base，移除效果不会恢复已经扣除的生命。
@@ -928,11 +1063,47 @@ fn apply_hit_now(
 | `with_granted_application_immunity(queries)` | 活跃且未抑制时，阻挡匹配来源与 incoming asset 条件的新效果 |
 | `with_remove_effects_with_tags(tags)` | 本次执行先移除匹配的现有效果 |
 
+`GameplayEffectImmunityQuery::new(source_tags, effect_tags)` 的两侧条件为 AND，同一效果配置的多个 query 为 OR。下面只免疫具有 damage_tag 的 incoming 效果，不限制其来源标签：
+
+```rust
+use bevy_gas::{
+    EffectTags, GameplayEffectImmunityQuery, GameplayTag, GameplayTagError, TagRequirements,
+};
+
+fn damage_immunity_tags(damage_tag: GameplayTag) -> Result<EffectTags, GameplayTagError> {
+    let effect_requirements = TagRequirements::new(vec![damage_tag], Vec::new())?;
+    Ok(
+        EffectTags::new(Vec::new(), Vec::new()).with_granted_application_immunity(vec![
+            GameplayEffectImmunityQuery::new(TagRequirements::default(), effect_requirements),
+        ]),
+    )
+}
+```
+
+将该配置用于 Duration/Infinite 效果。空 query 列表不提供免疫；包含一项 `GameplayEffectImmunityQuery::default()` 的列表，在普通应用流程中会匹配所有来源和 incoming 效果。免疫使用 TagRequirements 的有向层级规则，和本节末尾“效果查询/移除双方展开祖先再取交集”不同；不要将过宽父标签写成免疫条件。
+
+Instant 不创建持续记录，因此不会实际授予持续 granted tags，也不持续提供免疫或执行 ongoing 生命周期。模板完整制作校验会拒绝 Instant 的非空 granted tags；原生 Rust 定义仍需调用者选对效果类型。
+
 ongoing 不满足时，效果进入 inhibited：撤回持续聚合贡献和 granted tags，停止提供免疫，暂停周期进度。有限 duration 仍继续减少。恢复条件后重新安装贡献，周期从原进度继续，不重新执行首跳。
 
 标签改变可能抑制 A，A 撤回标签又影响 B，因此实现会按稳定的目标和效果顺序反复收敛到固定点。若发现重复状态形成不收敛循环，会移除参与循环的效果并记录错误。设计条件时避免互相授予和撤销同一组条件导致振荡。
 
 `EffectRequirementDiagnostics` 默认关闭，开启后可读扫描、转换、循环和耗时指标。耗时仅用于观测，不参与玩法决策。
+
+```rust
+use bevy::prelude::*;
+use bevy_gas::EffectRequirementDiagnostics;
+
+fn enable_effect_diagnostics(mut diagnostics: ResMut<EffectRequirementDiagnostics>) {
+    diagnostics.set_enabled(true);
+}
+
+fn install_effect_diagnostics(app: &mut App) {
+    app.add_systems(Startup, enable_effect_diagnostics);
+}
+```
+
+在已安装 GAS 的 App 中注册上述 Startup 系统。`metrics()` 返回累计的 convergence_calls、decision_passes、访问/快照数量、transitions、cycles 和 elapsed。`reset()` 清零统计但保留启用状态，`set_enabled(false)` 停止累计但不清零。这里测量的是效果条件收敛，不是整个 GAS 或周期伤害系统的总耗时。
 
 ### 堆叠策略的每个维度
 
@@ -945,7 +1116,7 @@ ongoing 不满足时，效果进入 inhibited：撤回持续聚合贡献和 gran
 | 时长 | KeepExisting / RefreshOnSuccessfulStack | 保留寿命 / 成功叠加时用新求值时长刷新 |
 | 周期 | KeepCurrentTick / ResetOnSuccessfulStack | 保留进度 / 成功叠加后进度归零 |
 | 溢出 | RejectApplication / RefreshDuration | 拒绝 / 保持层数并进入成功路径 |
-| 到期 | RemoveAllStacks / RemoveSingleStack | 全部移除 / 减一层并在仍有层时重置寿命 |
+| 到期 | RemoveAllStacks / RemoveSingleStack | 全部移除 / 减一层并在仍有层时用保留 Spec 的初始 duration 重置寿命 |
 
 `stack_limit=0` 表示无业务层数上限。`linear_refreshing(type, limit)` 组合 Linear、刷新时长、重置周期、溢出拒绝、到期全移除。
 
@@ -963,7 +1134,7 @@ ongoing 不满足时，效果进入 inhibited：撤回持续聚合贡献和 gran
 
 `get_active_effects_on_target` 返回 Handle 列表；需要避免额外 Vec 分配时，可以从 `ActiveGameplayEffects::handles(target)` 迭代，再用 `get(handle)` 查看 Spec、source、层数、抑制与计时状态。`remove_active_effect(handle, params)` 返回是否真正移除；同 World 的陈旧句柄返回 false。
 
-移除撤销该效果尚存在的持续贡献和标签引用，不回滚历史 Instant 或周期伤害。直接移除/替换 ActiveGameplayEffects 时，生命周期 hook 也会清理相关贡献。
+容器枚举和 `has_active_effect_with_tags` 也包含 inhibited 记录。“仍有记录”不等于“当前贡献生效”，需要时额外检查 `is_inhibited()`。移除撤销该效果尚存在的持续贡献和标签引用，不回滚历史 Instant 或周期伤害。直接移除/替换 ActiveGameplayEffects 时，生命周期 hook 也会清理相关贡献。
 
 当前按标签查询/移除效果的函数将 asset tags 和查询 tags 双方都扩展祖先，再取交集。因此 `Effect.Buff` 与 `Effect.Debuff` 可能因为共同祖先 `Effect` 命中。需要精确驱散时，应明确筛选目标效果的定义或原始 asset tag，再按 Handle 移除，不能把这类接口当作严格相等筛选。
 
@@ -1022,6 +1193,13 @@ fn grant_strike(
 
 阻止其他技能的计数存放在 ASC 内部，与 Actor 的 GameplayTagContainer 分开。不要把 ability asset tag 当作角色已经获得的状态。
 
+**取消和阻止使用不同的匹配方式：**
+
+- 取消：查询标签和技能 asset tags 都展开祖先后取交集。取消条件 `Ability.Attack` 可能同时取消标记为 `Ability.Heal` 的技能，因为双方都有祖先 Ability。
+- 阻止：加入 ASC 的阻止标签会带上祖先，但激活时用待激活技能的 asset 原始位查询。加入 `Ability.Attack` 会阻止 asset 为 `Ability.Attack` 或 Ability 的技能；不会仅凭该项阻止 asset 只有 `Ability.Heal` 或 `Ability.Attack.Heavy` 的技能。
+
+设计标签树时应按实际匹配规则验证，精确取消某个实例使用 `cancel_ability` 和实例 Handle。不要把这两种规则当作通用的“父类别匹配全部子类别”。
+
 完整角色应使用 Bundle。当前激活检查在来源缺少 GameplayTagContainer 时会跳过对应的角色标签和冷却标签判断，缺组件不能当作“所有受限技能都会安全拒绝”的保障。
 
 ### 从请求到启动的顺序
@@ -1046,6 +1224,28 @@ fn grant_strike(
 
 `can_activate_ability` 与 `AbilityActivationCheckParams<P>` 适合 UI 可用状态和 AI 决策，检查当前标签、冷却和支付能力。它是只读预测，不消耗概率随机数，也不完整检查授予 Handle、实例数量、Cost 是否 Instant 或效果应用要求。真实执行仍可能失败。
 
+普通费用预览把 source 同时作为第二个参数传入，因为该参数是**费用修改器的求值目标**，而正式 Commit 始终对 source 求值：
+
+```rust
+use bevy::prelude::Entity;
+use bevy_gas::{
+    AbilityActivationCheckError, AbilityActivationCheckParams, AdditionalCostProvider,
+    GameplayAbility, can_activate_ability,
+};
+use std::sync::Arc;
+
+fn preview_definition<P: AdditionalCostProvider>(
+    source: Entity,
+    ability: &Arc<GameplayAbility>,
+    level: u32,
+    params: &AbilityActivationCheckParams<'_, '_, P>,
+) -> Result<(), AbilityActivationCheckError> {
+    can_activate_ability(source, source, ability, level, params)
+}
+```
+
+标签/冷却失败封装为 `AbilityActivationCheckError::Requirements`，支付失败为 `Cost`。此接口不接收捕获的激活上下文，不会带入本次施法的来源快照、causer 或自定义 instigator；依赖这些元数据的费用逻辑必须接受“预览与实际上下文不同”的边界。
+
 `try_activate_ability_by_handle` 是独立同步调用路径，不会加入公共 FIFO，也不会替调用者处理已经排队的其他请求。普通游戏生产系统优先入队，避免同步调用与队列等待中的逻辑产生不直观的顺序。
 
 ### 活跃技能 结束和取消
@@ -1060,6 +1260,42 @@ Actor
 `ActiveAbilityHandle` 是活跃实例 Entity。`end_ability(source, active_handle, params)` 标记 Ending，`cancel_ability(...)` 标记 Cancelled；后续 Cleanup 撤销该实例的阻止计数、减少活跃数、删除实例与任务。
 
 结束和取消都不会自动退款，不会移除此前已经施加的效果，也不撤回先前已经进入公共 FIFO 的请求。冷却、DoT、召唤物是否随技能结束移除，需要游戏明确设计。
+
+公开 end/cancel 调用只是标记状态；Cleanup 之前活跃计数和阻止记账通常仍在。同 tick 立刻撤销授予、替换规格或再次激活，可能仍受原计数约束。启动流程内部按标签取消旧技能有自己的即时记账清理步骤，不能由此推断公开 cancel 已完成全部清理。
+
+同步激活 API 返回 `Result<()>`，执行结果消息也不直接返回新建的 ActiveAbilityHandle。需要管理实例时，在 Commands flush 后按 source 和 AbilitySpecHandle 查询；Handle 只在对应 ASC 内有效，不能省略 source 条件。下面取消该角色指定规格的所有已可见 Active 实例，并明确排序：
+
+```rust
+use bevy::prelude::Entity;
+use bevy_gas::{
+    AbilityActivationStatus, AbilitySpecHandle, AbilitySystemParams, AdditionalCostProvider,
+    cancel_ability,
+};
+
+fn cancel_owned_spec<P: AdditionalCostProvider>(
+    source: Entity,
+    spec_handle: AbilitySpecHandle,
+    params: &mut AbilitySystemParams<'_, '_, P>,
+) -> usize {
+    let mut handles: Vec<_> = params
+        .active_ability_query
+        .iter()
+        .filter(|(_, active)| {
+            active.get_source() == source
+                && active.get_spec_handle() == spec_handle
+                && active.get_status() == AbilityActivationStatus::Active
+        })
+        .map(|(entity, _)| entity)
+        .collect();
+    handles.sort_by_key(|entity| entity.to_bits());
+    handles
+        .into_iter()
+        .filter(|&entity| cancel_ability(source, entity, params))
+        .count()
+}
+```
+
+此例复用同一个 AbilitySystemParams 的 Query，先收集 Handle 再修改。允许并发实例时，游戏必须决定取消其中哪个或全部；链 ID 可辅助筛选，但同一链中的兄弟激活仍可能使用同一规格，不能将链 ID 当作唯一实例 ID。
 
 通过 Commands 新建的实例在 flush 前不能直接作为普通 Query 结果读取，内部 `PendingActiveGameplayAbilities` 为当前激活批次提供临时可见性，使同步子技能可以正确取消父技能。这是运行时内部协调资源，不应拿来存储游戏状态。
 
@@ -1087,6 +1323,10 @@ SimulationPlugin::new(settings).with_additional_costs::<InventoryCosts>()
 
 同时初始化 Provider 需要的游戏组件和资源。直接调用 GAS 的 `AbilitySystemParams<InventoryCosts>`、预检参数和运行时插件必须使用相同 Provider。默认 `()` 遇到非空额外成本会拒绝，不会免费放行。
 
+`AdditionalCostContext` 的 source 始终是付款角色，level 是规格等级，activation 是可选的 `AbilityActivationContext` 引用。实际激活时有该上下文；只读预检和独立 `commit_ability` 时为 None。Provider 应只访问自身需要的外部组件/资源，避免与 GAS 参数重复借用，不重入 GAS、不修改 GAS 管理的状态、不执行不可逆副作用。
+
+Receipt 只在这一次同步 Commit 中存活，不是可供技能结束后退款的持久凭据。如果补偿本身失败，`AbilityCommitError::AdditionalCostRollback` 同时保存原始 commit_error 和 rollback_error，游戏应分别记录并处理。
+
 补偿范围是 Commit 期间暂扣的外部成本；成功支付之后的启动动作失败、未命中、取消或结束不自动退款。该协议也不保证把先前取消的技能、已执行属性变化等全部回滚，不能视作整个战斗事务。
 
 完整实现参考 [inventory_bomb.rs](../../bevy_gas/examples/inventory_bomb.rs) 和 [扩展额外成本协议](../../bevy_gas/.docs/14-extending-the-system.md)。
@@ -1102,7 +1342,7 @@ SimulationPlugin::new(settings).with_additional_costs::<InventoryCosts>()
 | `AbilityTaskDef::instant(action)` | 启动期间立即处理动作，不创建等待实体 |
 | `AbilityTaskDef::wait_ticks(ticks, action)` | 创建任务实体，由后续 AbilityTasks 阶段推进 |
 
-| OnFinished 动作 | 用途 |
+| AbilityTaskOnFinishedDef 动作 | 用途 |
 | --- | --- |
 | None | 完成任务，不执行额外动作 |
 | EndAbility | 结束父技能 |
@@ -1111,6 +1351,10 @@ SimulationPlugin::new(settings).with_additional_costs::<InventoryCosts>()
 | ApplyGameplayEffectToTarget | 应用到捕获的主目标 |
 | ApplyGameplayEffectToTargets | 按捕获顺序应用到全部目标 |
 | ActivateAbility | 激活同来源角色已授予的另一个 Handle，传播目标和链上下文 |
+
+上表是定义层 `AbilityTaskOnFinishedDef`，运行时动作类型是 `AbilityTaskOnFinished`。两者不能逐字互换，例如定义的 `ApplyGameplayEffectToTarget` 在运行时对应 `ApplyGameplayEffect`。普通技能配置使用 Def；运行时实例由激活流程构造。
+
+确需手动生成任务时，对已有的 AbilityTaskDef 值调用 `task_def.instantiate(active_handle, AbilityTaskExecutionContext::new(source, spec_handle, level))`，返回运行时 `AbilityTask`。生成的任务实体应设为该活跃技能的子实体，以便沿用实例清理规则；执行时仍按运行时任务路径处理。
 
 不存在内置 WaitSeconds、WaitSignal、移动、播放动画或命中检测任务。需要这些能力时由游戏系统和现有事件/请求协作，或明确扩展原生任务机制。
 
@@ -1150,7 +1394,7 @@ A 的成本和冷却
 
 ### 任务事件
 
-EmitEvent 使用 `Commands::trigger(AbilityTaskEvent)`，由 `On<AbilityTaskEvent>` Observer 处理，不使用 MessageReader 读取。事件携带自己的上下文和目标数据；Observer 执行时不要假设父技能仍然 Active。
+EmitEvent 使用 `Commands::trigger(AbilityTaskEvent)`，由 `On<AbilityTaskEvent>` Observer 处理，不使用 MessageReader 读取。`event.get_context()` 返回的是轻量 `AbilityTaskExecutionContext`，只含 source、spec_handle 和 level；事件另有目标集、活跃实例 Entity 和 event_id。它不是完整 `AbilityActivationContext`，不直接携带来源快照、causer、instigator 或技能链。Observer 如需这些信息，应通过仍有效的实例或游戏自有状态取得；执行时不能假设父技能仍然存在或 Active。
 
 Observer 通过 deferred Commands 执行。任务阶段触发的 Observer 若在 resolver 前入队，可在当前 tick 处理；resolver 启动期间触发的 Observer 通常在 resolver 返回后才入队，其请求进入下一 tick。需要严格同步的效果顺序，用明确的 Instant/Batch 动作表达。
 
@@ -1250,14 +1494,14 @@ fn install_execution_reader(app: &mut App) {
 
 ### GAS 只接收结果
 
-`bevy_gas::gas::gameplay_targeting` 保存捕获数据：
+`bevy_gas::gas::gameplay_targeting` 保存前三种目标契约；相关的激活组合值由 `gameplay_abilities` 拥有：
 
 | 类型 | 内容 |
 | --- | --- |
 | AbilityTargetHit | Entity、世界位置、可选法线 |
 | AbilityTargetData | 查询原点和有序命中列表 |
 | AbilityActivationTargets | 单 Entity，或非空 TargetData；首个命中是主目标 |
-| AbilityActivationData | 本次 source、targets、activation context 的组合 |
+| AbilityActivationData | `gas::gameplay_abilities` 导出，本次 source、targets、activation context 的组合 |
 
 `AbilityTargetData::new(origin, hits)` 不排序、不去重、不检查几何。`AbilityActivationTargets::acquired(data)` 拒绝空集合，但不校验距离、阵营或实体存活。重复 Entity 会按列表被重复处理，多目标伤害去重应由游戏显式完成。
 
@@ -1326,13 +1570,17 @@ fn nearby_targets() -> Result<TargetingDefinition, TargetingDefinitionError> {
 
 输入用 `TargetingInput::new(origin, direction)`，显式目标用 `with_explicit_target(entity)`。origin 应来自 `LogicalPosition`，而非表现 Transform。
 
+TargetingInput 的 origin 和 direction 在构造时就被捕获。`AbilityCommand::targeted` 延迟到 fixed tick 消费时不会自动读取来源的新位置；候选位置则来自消费时已同步的世界。若要“先移动、再以新位置施法”，帧阶段先缓存纯输入意图，在 Movement 之后的 RequestProducers 读取最新 LogicalPosition，再构造 targeted 命令。
+
 ### 索敌请求与即时查询
 
 常用路线是 `AbilityCommand::targeted`，由命令适配器管理请求和结果关联。底层还可使用 `TargetingRequestQueue::push_request`，continuation 选择仅返回结果或提交技能激活。
 
 索敌处理器写入 `TargetingRequestResult` Message，并通过 Commands 触发 `TargetingResultEvent` Observer。取得目标成功、提交 GAS 成功、GAS 执行成功，是三个不同阶段，UI 不应看到索敌成功就宣告技能释放成功。
 
-直接调用 `acquire_targets(source, input, definition, params)` 时，要保证范围查询发生在空间同步之后，并且其后没有尚未同步的位置/成员变化。首次空间索引未就绪会返回错误；没有可选目标返回 NoTargetsFound，而不是成功的空结果。
+直接调用 `acquire_targets(source, input, definition, params)` 需要 `TargetingSystemParams`，其中依赖 `TargetingSpatialIndex` 资源。Sphere/Cone 范围查询要求索引已就绪，未就绪会返回错误，不会退回全量扫描；应在最后一次影响候选的位置/成员变更完成同步后查询。`TargetingSpatialIndex::is_ready()`、`len()`、`is_empty()` 可用于诊断。
+
+Self/Explicit 直接读取 ECS，不要求空间索引已就绪，但 SystemParam 本身仍需要索引资源。Self 要求 source 具有有效 LogicalPosition；Explicit 要求选中目标具有有效 LogicalPosition 和 Targetable，并不要求 source 带有 LogicalPosition。两者均要求输入 origin 有限。没有可选目标返回 NoTargetsFound，而不是成功的空结果。
 
 ### 动态 AABB 树如何工作
 
@@ -1392,9 +1640,15 @@ fn make_bindings(handle: AbilitySpecHandle) -> AbilityInputBindings<Action> {
 
 `GameCommandQueue<C>` 是泛型 FIFO，可用于 Move、Attack、Build 或技能命令，自身不会执行命令。输入、AI、UI 都可以向同类队列生产，由游戏系统消费。
 
+自定义命令类型需由游戏调用 `app.init_resource::<GameCommandQueue<UnitCommand>>()` 并安装自己的消费系统；`AbilityCommandPlugin` 只初始化和消费 AbilityCommand 队列。`push(command)` 返回 `Result<GameCommandId, GameCommandQueueError>`，`pop()` 返回最早的 `(id, command)` 或 None，`len()`/`is_empty()` 可查看积压。
+
+`clear()` 只丢弃尚在本队列中的条目，不发布结果、不复用 ID，也不撤销已经被插件消费并提交到下游的工作。手动 pop 技能队列意味着接管该条命令的执行和结果报告责任。
+
 不同 C 拥有不同队列，彼此没有统一跨类型顺序；需要“移动后立刻施法”等整体业务顺序时，可用游戏自己的 enum 包含多种命令，再在一个消费者中按顺序转换。
 
 `AbilityCommandPlugin` 为 `GameCommandQueue<AbilityCommand>` 提供专门适配：先消费整批，为 targeted 取得目标，再按原命令顺序提交 GAS。混合 direct/targeted 不会因为 direct 省去索敌而抢先执行。
+
+整批 targeted 查询在提交 GAS 前已完成，因此 FIFO 保证激活提交顺序，却不表示每次激活后重新索敌。即使前一个技能改变位置或标签，后一个命令仍使用本批先前取得的目标集。需要前一个技能结果影响后一次索敌时，应将后续查询安排在对应结算之后，并在必要时重新同步空间索引。
 
 两个 AbilityCommand 构造器的 origin 默认均为 Input。`direct` 只表示目标直接提供；若是 AI/规则直接触发，可用 `with_origin(AbilityCommandOrigin::Direct)` 标明来源原因。
 
@@ -1490,7 +1744,7 @@ GAS Random 常用 `random_range`、`random_bool`，直接调用者必须传入�
 | 暂时攻击增益/减速 | Duration + 无周期 Modifier | 与已有百分比的聚合规则、重复施加策略 |
 | 毒伤/持续治疗 | 正周期 Effect | 幅度一次捕获，到期移除先于周期执行 |
 | 眩晕/沉默 | granted 状态标签 + 技能 blocked tags | 新标签阻止未来激活；是否取消当前技能需额外设计 |
-| 无敌/伤害免疫 | 活动效果授予应用免疫规则 | 明确 incoming asset tags，避免宽泛祖先匹配 |
+| 无敌/伤害免疫 | 活动效果授予应用免疫规则 | 明确 incoming asset tags，不要把过宽父标签写成免疫条件 |
 | 范围伤害 | 模板范围索敌 + 捕获多目标 + ToTargets | 是否去重、是否命中时重新查询、是否逐目标付费 |
 | 弹体 | 游戏生成/移动/碰撞弹体，命中后入队 Effect | causer 是弹体；伤害读取发射快照还是命中时属性 |
 | 装备属性 | Infinite 持续 Effect，保存 Handle | 卸装按 Handle 移除，避免误删其他装备同类贡献 |
