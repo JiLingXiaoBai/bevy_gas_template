@@ -18,6 +18,8 @@ workspace/
 请另行取得兼容的 GAS 源码放到该位置，或按实际位置修改 path。Cargo 不会为 path 依赖自动下载库。
 游戏拥有配置、输入绑定、空间采样、索敌和位置表现；GAS 提供技能、效果、属性和任务执行。修改本地库后，下次构建即可使用，无需提交或推送。
 
+详细接入和模块原理见 [模板库使用指南与 GAS 工作原理](.docs/10-template-usage-and-gas-internals.md)，包含配置加载、完整代码示例、tick 时间线、各 GAS 模块、输入索敌和常见玩法。
+
 ## 从模板创建游戏
 
 维护者上传本工程到 GitHub 后，在仓库 **Settings** 中勾选 **Template repository**。使用者选择 **Use this template → Create a new repository**，克隆自己的仓库，并准备同级 `bevy_gas`。参见 [GitHub 模板设置](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-template-repository) 与 [从模板创建仓库](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)。
