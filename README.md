@@ -18,7 +18,27 @@ workspace/
 请另行取得兼容的 GAS 源码放到该位置，或按实际位置修改 path。Cargo 不会为 path 依赖自动下载库。
 游戏拥有配置、输入绑定、空间采样、索敌和位置表现；GAS 提供技能、效果、属性和任务执行。修改本地库后，下次构建即可使用，无需提交或推送。
 
-详细接入和模块原理见 [模板库使用指南与 GAS 工作原理](.docs/10-template-usage-and-gas-internals.md)，包含配置加载、完整代码示例、tick 时间线、各 GAS 模块、输入索敌和常见玩法。
+## 文档导航
+
+根 README 提供项目介绍、运行与导表命令，以及完整文档入口；专题文档位于 `.docs/`。公共接口以当前源码的 rustdoc 为准。
+
+| 文档 | 内容 |
+| --- | --- |
+| [完整使用指南与 GAS 工作原理](.docs/10-template-usage-and-gas-internals.md) | 从启动、配置、完整代码示例到各 GAS 模块、执行时序与扩展边界 |
+| [01 — 配置所有权、加载与扩展](.docs/01-configuration.md) | 配置归属、加载流程和扩展方式 |
+| [02 — Luban 配置工程与工具链](.docs/02-luban-toolchain.md) | 工具安装、导表流程与开发工具 |
+| [03 — Excel 技能配置与 GAS 接入](.docs/03-gas-configuration.md) | 表结构、配置规则与 GAS 编译映射 |
+| [04 — 模板使用与依赖维护](.docs/04-template-and-dependencies.md) | 创建游戏、依赖布局与模板维护 |
+| [05 — 空间、索敌与 GAS 接入](.docs/05-spatial-targeting.md) | 逻辑位置、空间索引与目标查询 |
+| [06 — 输入绑定与空间随机](.docs/06-input-and-spatial-random.md) | 技能输入映射与独立随机流 |
+| [07 — 架构与插件组合](.docs/07-architecture-and-composition.md) | 模块职责、插件装配与调度顺序 |
+| [08 — 游戏命令与结果反馈](.docs/08-game-commands.md) | 命令队列、技能适配与执行反馈 |
+| [09 — 从模板开始新游戏](.docs/09-starting-a-game.md) | 清理演示、保留基础模块与添加业务 |
+| [协作与编码规范](AGENTS.md) | 项目约束、代码风格与验证要求 |
+
+首次创建游戏建议先阅读 04 和 09，准备同级 GAS 源码后即可运行基础启动器；配置演示和修改表格时，再按下文准备 Luban 工具并导表。需要完整接入流程和 GAS 原理时阅读完整使用指南。
+
+源码建议阅读顺序：`src/main.rs` → `src/game.rs` / `src/game/plugin.rs` → `src/application.rs` → 按需阅读 `src/gameplay.rs` / `src/config.rs`。配置演示独立位于 `examples/configured_game/`，可以整体删除。
 
 ## 从模板创建游戏
 
@@ -166,6 +186,6 @@ cargo run --example configured_game -- --headless
 
 新增表或公式由游戏维护 Schema 与编译映射。新的原生 AbilityTask 机制、ModifierOperation 仍需库支持；当前没有通用任务注册协议。模板更新和 GAS 改动分别由游戏维护，接口或依赖变化后完成导表与游戏回归。
 
-项目自带六个 Luban 技能、Codex MCP 入口和 Zed 的 `config-validation` 分析设置；工具与缓存位于 `tools/luban/`。完整说明见 [.docs/README.md](.docs/README.md)、[配置所有权](.docs/01-configuration.md)、[Luban 工具链](.docs/02-luban-toolchain.md) 和 [Excel 配置规则](.docs/03-gas-configuration.md)。
+项目自带六个 Luban 技能、Codex MCP 入口和 Zed 的 `config-validation` 分析设置；工具与缓存位于 `tools/luban/`。工具与配置的详细说明见 [配置所有权](.docs/01-configuration.md)、[Luban 工具链](.docs/02-luban-toolchain.md) 和 [Excel 配置规则](.docs/03-gas-configuration.md)。
 
 配置工具和初始样例最初基于 `bevy_gas` 提交 `38147000190ef887db091ab2c9c39a558edd5abe` 适配；该哈希仅记录代码出处，不是当前 path 依赖的版本锁定。保留 [MIT 许可证](LICENSE)、[Luban 配置许可证](config/LICENSE.Luban) 与 [Luban 技能许可证](.agents/skills/LICENSE.Luban)。
