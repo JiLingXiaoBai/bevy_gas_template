@@ -466,7 +466,7 @@ LinearLevel = base + per_level * (level - 1)
 
 时间线按 `(at_tick, task_ids 中的位置)` 排序；相同 tick 的动作合并为一个 Batch。tick 0 使用 Instant，正 tick 使用 WaitTicks，各组从激活开始并行等待。完整制作校验要求恰好一个 EndAbility，且在最后执行。
 
-配置动作目前只包含 ApplyEffect 和 EndAbility。ApplyEffect 的目标范围是 Primary 或 AllCaptured；EndAbility 的 target_scope 应为 None，effect_id 留空。完整制作校验要求属性成本为 Instant、非周期、概率 1、每属性唯一的 Add 且各允许等级均为负；冷却为正持续时间、非周期、概率 1、无 Modifier 且具有非空 granted tags。配置效果统一使用 `StackingPolicy::non_stacking()`，没有叠层策略字段。自定义公式、EmitEvent、技能链、复杂免疫/ongoing 规则等可以用 Rust API 表达；想由策划配置时还需扩展 Schema 和编译映射。
+配置动作目前只包含 ApplyEffect 和 EndAbility。ApplyEffect 的目标范围是 Primary 或 AllCaptured；EndAbility 的 target_scope 应为 None，effect_id 留空。完整制作校验要求属性成本为 Instant、非周期、概率 1、每属性唯一的 AddBase 且各允许等级均为负；冷却为正持续时间、非周期、概率 1、无 Modifier 且具有非空 granted tags。配置效果统一使用 `StackingPolicy::non_stacking()`，没有叠层策略字段。自定义公式、EmitEvent、技能链、复杂免疫/ongoing 规则等可以用 Rust API 表达；想由策划配置时还需扩展 Schema 和编译映射。
 
 ## 7 配置技能的完整接入
 
@@ -578,9 +578,9 @@ fn queue_configured_laser(
 | 项目 | 数据 |
 | --- | --- |
 | 技能 | 1001 Laser，最大 5 级，禁止并发实例，State.Stunned 阻止激活 |
-| 消耗 | Effect 2001：Instant，Mana Add -20 |
+| 消耗 | Effect 2001：Instant，Mana AddBase -20 |
 | 冷却 | Effect 2002：180 tick，授予 Cooldown.Laser |
-| 伤害 | Effect 2003：Health Add，`-100 + (-20) × (level - 1)` |
+| 伤害 | Effect 2003：Health AddBase，`-100 + (-20) × (level - 1)` |
 | 索敌 | 3001：显式目标，排除自己，要求 AttributeSet，最大距离 20，最多 1 个 |
 | 动作 | tick 12 先应用 Primary 伤害，再 EndAbility |
 
@@ -624,7 +624,7 @@ fn instant_delta(id: AttributeId, value: f32) -> Arc<GameplayEffect> {
     Arc::new(GameplayEffect::new(
         vec![Modifier::new(
             id,
-            ModifierOperation::Add,
+            ModifierOperation::AddBase,
             ModifierMagnitude::Flat(value),
         )],
         EffectDurationTicks::Instant,
@@ -798,7 +798,7 @@ fn initialize_health(
     attributes.initialize_attribute(manager, health, 100.0, None)?;
     attributes.apply_instant_modifier(
         manager,
-        &ModifierSpec::new(health, ModifierOperation::Add, -25.0),
+        &ModifierSpec::new(health, ModifierOperation::AddBase, -25.0),
     )?;
     Ok(attributes)
 }
@@ -829,21 +829,37 @@ Base 是没有持续修饰时的基础值，Instant 修改直接改变它。Curr
 不存在 Override 时：
 
 ```text
-Current = ((Base + Σ Add) × (1 + Σ PercentAdd)) × Π Multiply
+Divisor = 1 + Σ(DivideAdditive - 1)
+Current = ((Base + Σ AddBase) × (1 + Σ(MultiplyAdditive - 1)) / Divisor) × Π MultiplyCompound + Σ AddFinal
 ```
 
-假设 Base 100，Add 10，两项 PercentAdd 分别 0.2、0.3，一项 Multiply 为 2，则结果为 `(100 + 10) × 1.5 × 2 = 330`。
+默认执行器把满足 `abs(Divisor) <= 1e-8` 的最终除数视为 1；瞬时 DivideAdditive 使用相同检查。
+持续模式先合并所有除数贡献，不逐项跳过零，再检查最终除数。
+
+假设 Base 100，AddBase 10，两项 MultiplyAdditive 分别 1.2、1.3，一项 MultiplyCompound 为 2，则结果为 `(100 + 10) × 1.5 × 2 = 330`。
+再增加两项 DivideAdditive(2) 与 AddFinal(5)，结果为 `(100 + 10) × 1.5 / 3 × 2 + 5 = 115`。
 
 | 操作 | 持续聚合 | 瞬时操作对 Base 的影响 |
 | --- | --- | --- |
-| Add | 先累加到基础值 | `base += value` |
-| PercentAdd | 所有贡献先求和，再乘 `1 + sum` | `base *= 1 + value` |
-| Multiply | 逐项连乘 | `base *= value` |
-| Override | 有覆盖值时直接返回覆盖值 | `base = value` |
+| AddBase | 先累加到基础值 | `base += value` |
+| MultiplyAdditive | 乘以 `1 + Σ(value - 1)` | `base *= value` |
+| DivideAdditive | 除以 `1 + Σ(value - 1)` | `base /= value` |
+| MultiplyCompound | 逐项连乘 | `base *= value` |
+| AddFinal | 所有乘除完成后累加 | `base += value` |
+| Override | 返回当前存储顺序中的第一个覆盖值 | `base = value` |
 
-瞬时修改按定义顺序逐个执行。两个瞬时 PercentAdd(0.1) 产生 `1.1 × 1.1`，与两个持续百分比共同形成 `1 + 0.1 + 0.1` 不同。
+瞬时修改按定义顺序逐个执行。两个瞬时 MultiplyAdditive(1.1) 产生 `1.1 × 1.1`，与两个持续倍率共同形成 `1 + 0.1 + 0.1` 不同。
+同样，两个瞬时 DivideAdditive(2) 除以 4，持续聚合除以 3；瞬时 AddFinal 在定义所在位置执行，不自动移到最后。
+名称、配置编号和幅度含义与 UE 六种操作对齐；旧配置的改名、编号交换和倍率迁移见
+[修改器操作](03-gas-configuration.md#修改器操作)。
 
-当前聚合器只有一个 Override 槽，后写覆盖前写；撤销后写的来源不会恢复之前被覆盖的 Override。需要优先级覆盖栈时应在游戏/库机制中明确设计，不能依赖当前槽位自动回退。
+聚合器保留全部 Override，默认选择当前存储顺序中的第一个候选。撤销其来源后，剩余候选可以继续生效。
+各操作的来源移除采用交换删除，可能改变剩余顺序；效果刷新也可能重新插入贡献。因此顺序不表示固定的
+最早/最新来源优先级，游戏需要显式优先级时可在自定义 executor 中筛选。
+
+这里的对齐范围是六种运算、叠层幅度和默认聚合器，不包含 UE 的求值通道或标签资格筛选。
+行为核对使用 [公开 GAS 源码快照（2025-09-29）](https://github.com/oblogin/GameplayAbilities/tree/371e12fc35be974c4cea4b2205c3fd10f99b337e)；
+该快照未标明精确 UE 版本，不能据此声称完成 UE 5.7 全源码验证。
 
 ### 脏位与来源移除
 
@@ -856,6 +872,25 @@ Current = ((Base + Σ Add) × (1 + Σ PercentAdd)) × Π Multiply
 ### 自定义聚合和执行后回调
 
 `initialize_attribute` 的 executor 参数可设置 `fn(&Aggregator, f32) -> f32`。执行器也可能用于费用预演和只读求值，必须无副作用，不能依赖“本次被调用了几次”。
+
+`Aggregator::modifiers(operation)` 按当前存储顺序借用该操作的 `AppliedModifier`，可以读取
+`get_value()` 和 `get_source_id()`，不复制 Vec，也不允许修改聚合器。六种操作均可查询；
+Override 可以读取全部候选。游戏可以据此编写“所有正百分比加成相加，
+负百分比只取最强一项”等规则，再将函数传给属性初始化接口。筛选只发生在求值时，未选中的
+持续修饰器仍被保留，最强项到期后较弱项能够重新参与。自定义函数应显式处理其余操作，
+并为并列候选定义明确的次级排序键，避免把会因交换删除而变化的存储顺序当作固定优先级。
+
+例如只读取百分比贡献，无需访问内部字段：
+
+```rust
+let percent_sum: f32 = aggregator
+    .modifiers(ModifierOperation::MultiplyAdditive)
+    .map(|modifier| modifier.get_value() - 1.0)
+    .sum();
+```
+
+只读访问和 executor 不会新增通道、覆盖优先级或每层独立求值信息；这些机制仍需明确的数据协议。
+属性初始化会重置对应聚合状态，不能用重复初始化代替运行时无损切换策略。
 
 `AttributePostExecute` 由 `set_post_execute` 设置，签名包含属性集、管理器、属性 ID、旧 Current、新 Current。它在瞬时执行后调用，持续聚合重算和可支付性预演不会调用。可用于实现游戏自己的数值约束；它没有 Commands 参数，涉及死亡实体处理、事件或表现时应由额外系统接续。
 
@@ -885,7 +920,7 @@ impl ModifierMagnitudeCalculation for AttackDamage {
 }
 ```
 
-将其放进 `ModifierMagnitude::Calculated(Box::new(AttackDamage { ... }))`，配合 Health 的 Add 操作即可构造伤害。该例主动选择“来源当前属性不可用时伤害为 0”；不同玩法可以采用自己的明确策略。
+将其放进 `ModifierMagnitude::Calculated(Box::new(AttackDamage { ... }))`，配合 Health 的 AddBase 操作即可构造伤害。该例主动选择“来源当前属性不可用时伤害为 0”；不同玩法可以采用自己的明确策略。
 
 `ModifierEvaluationContext` 可以读取等级、source、target、instigator、causer、来源/目标当前属性、标签以及可选 source snapshot。live source 读取不会隐式回退到 snapshot，需要公式自己选择使用快照还是实时值。
 
@@ -972,8 +1007,8 @@ fn make_slow(
     Arc::new(GameplayEffect::new(
         vec![Modifier::new(
             move_speed,
-            ModifierOperation::PercentAdd,
-            ModifierMagnitude::Flat(-0.3),
+            ModifierOperation::MultiplyAdditive,
+            ModifierMagnitude::Flat(0.7),
         )],
         EffectDurationTicks::DurationTicks(ModifierMagnitude::Flat(60.0)),
         None,
@@ -984,7 +1019,7 @@ fn make_slow(
 }
 ```
 
-在默认 20 Hz 下持续 3 秒，撤销时删除自己的 -30% 聚合贡献和状态标签引用。non_stacking 表示每次应用独立记录，所以连续两次减速会产生两项 PercentAdd，不能把它理解成“重复施加自动忽略”。
+在默认 20 Hz 下持续 3 秒，倍率 0.7 表示 -30%；撤销时删除自己的聚合贡献和状态标签引用。non_stacking 表示每次应用独立记录，所以连续两次减速会产生两项 MultiplyAdditive(0.7)，共同形成倍率 0.4，不能把它理解成“重复施加自动忽略”。
 
 ### 应用 API 和上下文
 
@@ -1112,7 +1147,7 @@ fn install_effect_diagnostics(app: &mut App) {
 | 身份 | None | 每次独立记录 |
 | 身份 | AggregateBySource | 同 Arc 定义、同目标、同 source 合并 |
 | 身份 | AggregateByTarget | 同 Arc 定义、同目标合并，source 可以不同 |
-| 幅度 | None / Linear | 保留原幅度 / 直接将每个 magnitude 乘层数 |
+| 幅度 | None / Linear | 保留原幅度 / 按操作的偏置规则缩放层数 |
 | 时长 | KeepExisting / RefreshOnSuccessfulStack | 保留寿命 / 成功叠加时用新求值时长刷新 |
 | 周期 | KeepCurrentTick / ResetOnSuccessfulStack | 保留进度 / 成功叠加后进度归零 |
 | 溢出 | RejectApplication / RefreshDuration | 拒绝 / 保持层数并进入成功路径 |
@@ -1122,7 +1157,7 @@ fn install_effect_diagnostics(app: &mut App) {
 
 有三个必须明确的实现细节：
 
-1. Linear 对所有操作都直接乘幅度。Multiply(1.2) 两层变成 Multiply(2.4)，不是 1.44；Override 也乘层数。百分比叠加通常更适合 PercentAdd。
+1. Linear 对 MultiplyAdditive 和 DivideAdditive 使用 `1 + (magnitude - 1) × count`；对 AddBase、MultiplyCompound、AddFinal 使用 `magnitude × count`；Override 保持原幅度。MultiplyAdditive(1.2) 两层变成 1.4，DivideAdditive(2) 两层变成 3。MultiplyCompound(1.2) 两层仍变成 2.4，不是 1.44；两个独立的 MultiplyCompound(1.2) 才会连乘为 1.44。
 2. 加层保留原活动记录的 source，以及旧 Spec 的幅度和周期长度，不为每层保留独立快照。新 duration 可以刷新剩余寿命，但不替换整个旧 Spec。
 3. 溢出 RefreshDuration 只允许保持层数走成功路径；是否真刷新仍由 duration policy 决定。配合 KeepExisting 时不会刷新寿命。
 
@@ -1216,7 +1251,7 @@ fn grant_strike(
 
 **激活自动 Commit。** 调用者不应在激活成功后再次调用 `commit_ability`，否则会再次支付。`commit_ability` 是单独提交成本与冷却、不开技能实例的独立 API。
 
-成本和冷却施加在 source 身上。属性成本必须是 Instant、只含 Add，通常以负数表示消耗。可支付性按修改器顺序预演聚合结果，包括已有持续贡献；费用预演不会执行 post-execute 副作用。
+成本和冷却施加在 source 身上。属性成本必须是 Instant、只含 AddBase，通常以负数表示消耗。可支付性按修改器顺序预演聚合结果，包括已有持续贡献；费用预演不会执行 post-execute 副作用。
 
 冷却通过一个效果的 granted tags 阻止再次激活，而不是 ActiveGameplayAbility 自己保存一个冷却秒表。技能结束之后，冷却效果继续存活到自己的到期时间。
 
@@ -1738,8 +1773,8 @@ GAS Random 常用 `random_range`、`random_bool`，直接调用者必须传入�
 
 | 玩法 | 建议组合 | 容易遗漏的规则 |
 | --- | --- | --- |
-| 直接伤害/治疗 | Instant Effect + Health Add | 负值/正值约定、生命上限和死亡逻辑由游戏定义 |
-| 蓝耗技能 | Instant Add 负值作为 cost | 激活自动支付，不再重复 Commit |
+| 直接伤害/治疗 | Instant Effect + Health AddBase | 负值/正值约定、生命上限和死亡逻辑由游戏定义 |
+| 蓝耗技能 | Instant AddBase 负值作为 cost | 激活自动支付，不再重复 Commit |
 | 普通冷却 | Duration Effect + granted Cooldown 标签 | 技能结束不移除冷却 |
 | 暂时攻击增益/减速 | Duration + 无周期 Modifier | 与已有百分比的聚合规则、重复施加策略 |
 | 毒伤/持续治疗 | 正周期 Effect | 幅度一次捕获，到期移除先于周期执行 |
@@ -1773,7 +1808,7 @@ GAS Random 常用 `random_range`、`random_bool`，直接调用者必须传入�
 | 技能一直 active | 是否有显式 EndAbility，任务是否被正确推进 |
 | 技能一直无法再次释放 | 活跃实例、block tags、冷却 granted tags、成本或状态条件 |
 | Buff 消失但生命未恢复 | Instant/周期改的是 Base，移除不会回滚历史伤害 |
-| 连续叠层数值异常 | Linear 是 magnitude×层数；Multiply 并非按层求幂 |
+| 连续叠层数值异常 | Linear 按操作使用偏置缩放，Override 不缩放；MultiplyCompound 是 magnitude×层数，并非按层求幂 |
 | 同一按键重复激活 | 是否在多个 fixed tick 重复读取同帧输入边沿 |
 | 画面目标移动但索敌仍在旧处 | 游戏是否只改 Transform，未更新 LogicalPosition |
 | MissingProvider / 未知资源 | 是否装配匹配 Provider，以及 Provider 是否识别该 i32 ID |
@@ -1823,6 +1858,7 @@ cargo run --example configured_game -- --headless
 | 目标过滤、范围采样、移动和表现 | 模板 gameplay 或游戏自己的模块 |
 | 自定义资源成本 | 游戏 AdditionalCostProvider |
 | 新原生 Task 或 ModifierOperation | GAS 库机制及测试，再更新模板映射 |
+| 基于已有操作的自定义聚合 | 游戏 executor 通过 `Aggregator::modifiers` 借用贡献；无需扩展 GAS 枚举 |
 | 存档、联网、预测、回滚、热更新 | 游戏自己的协议和系统，不能假定模板已经提供 |
 
 当前没有通用第三方 AbilityTask 动态注册协议，也没有独立 GameplayCue/VFX/动画系统。表现可以订阅任务事件、命令/执行结果或角色状态；如何播放动画、音效、镜头和粒子由游戏实现。

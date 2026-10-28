@@ -184,7 +184,7 @@ cargo run --example configured_game -- --headless
 - `examples/configured_game/`：独立配置演示及其测试，可随整个 examples 删除；库不再导出 LaserReport/run_headless/run_windowed。
 - 同级 `../bevy_gas`：GAS 执行、属性聚合、任务机制与目标结果契约。
 
-新增表或公式由游戏维护 Schema 与编译映射。新的原生 AbilityTask 机制、ModifierOperation 仍需库支持；当前没有通用任务注册协议。模板更新和 GAS 改动分别由游戏维护，接口或依赖变化后完成导表与游戏回归。
+新增表或公式由游戏维护 Schema 与编译映射。配置支持 UE 名称和编号的六种基础操作：AddBase=0、MultiplyAdditive=1、DivideAdditive=2、Override=3、MultiplyCompound=4、AddFinal=5。MultiplyAdditive 填写倍率（1.5 表示 +50%）；旧配置需按[迁移说明](.docs/03-gas-configuration.md#修改器操作)修改并重新导表。游戏可通过 executor 和 `Aggregator::modifiers(operation)` 只读访问实现自定义聚合。新的原生 AbilityTask 机制、ModifierOperation 仍需库支持；当前没有通用任务注册协议。模板更新和 GAS 改动分别由游戏维护，接口或依赖变化后完成导表与游戏回归。
 
 项目自带六个 Luban 技能、Codex MCP 入口和 Zed 的 `config-validation` 分析设置；工具与缓存位于 `tools/luban/`。工具与配置的详细说明见 [配置所有权](.docs/01-configuration.md)、[Luban 工具链](.docs/02-luban-toolchain.md) 和 [Excel 配置规则](.docs/03-gas-configuration.md)。
 

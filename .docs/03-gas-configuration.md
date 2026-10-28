@@ -167,6 +167,41 @@ SelectionKind 使用 `SelfTarget`，Excel 别名可以填写 Self，避免 Rust 
 
 ## 数值、时间与动作
 
+### 修改器操作
+
+`gas.Modifier.operation` 支持六种基础运算。XML 配置枚举通过编译器显式映射到
+`bevy_gas::ModifierOperation`；名称和编号使用 UE 的六种操作。
+
+| 配置值 | 编码 | 持续效果的默认聚合阶段 |
+| --- | --- | --- |
+| `AddBase` | 0 | 先累加到 Base |
+| `MultiplyAdditive` | 1 | 乘以 `1 + Σ(value - 1)` |
+| `DivideAdditive` | 2 | 除以 `1 + Σ(value - 1)` |
+| `Override` | 3 | 使用当前存储顺序中的第一个覆盖值 |
+| `MultiplyCompound` | 4 | 逐项连乘 |
+| `AddFinal` | 5 | 所有乘除完成后累加 |
+
+`MultiplyAdditive` 的 `1.5` 表示 +50%，`0.7` 表示 -30%；
+`MultiplyCompound` 的 `1.5` 表示乘 1.5，`DivideAdditive` 的 `2` 表示单项除以 2。
+两个持续 `DivideAdditive(2)` 合并为除以 3；两个瞬时操作依次执行，则除以 4。
+默认执行器在合并后的除数满足 `abs(divisor) <= 1e-8` 时使用中性除数 1；瞬时除数使用相同检查。
+持续聚合先合并全部原始值，再检查最终除数；
+不会逐项丢弃数值为零的贡献。自定义 executor 负责自己的除零与数值边界策略。
+瞬时 `AddFinal` 与 `AddBase` 都是按定义位置直接增加 Base，不会延迟到整个效果末尾。
+技能成本继续仅允许 `AddBase`，不会因为瞬时 `AddFinal` 也是加法而放宽。
+
+迁移旧配置时，将 `Add` 改为 `AddBase`；将 `PercentAdd` 改为 `MultiplyAdditive`，
+Flat 的 `base` 加 1，LinearLevel 的 `base` 加 1、`per_level` 不变；自定义幅度计算器同样返回倍率。
+将 `Multiply` 改为 `MultiplyCompound`，幅度不变。数值配置必须把旧 Multiply 的编号 2 改为 4，
+把旧 DivideAdditive 的编号 4 改为 2；Override=3、AddFinal=5 不变。
+本仓库示例表已迁移，旧二进制不能与新代码混用。修改后必须运行
+`pwsh -NoProfile -File config/export.ps1`，同时生成匹配的 Rust 类型、二进制和 schema 清单，
+生成代码不得手工编辑。
+游戏自定义已有操作的聚合方式可以通过 executor 与 `Aggregator::modifiers(operation)` 只读迭代器实现，
+无需新增配置操作或修改 GAS；详见 [自定义聚合](10-template-usage-and-gas-internals.md#自定义聚合和执行后回调)。
+
+### 幅度与时间校验
+
 以下规则描述配置制作约定，由启用 `config-validation` 的完整业务校验执行；
 最小构建仍检查构建定义所需的基本数值与引用合法性，但不重复执行全部策略检查。
 
@@ -188,7 +223,7 @@ GAS 在应用该效果的修改器之前检查幅度，失败时不会部分应�
 DurationTicks 必须提供正整数持续时间，Infinite 不填写 duration_ticks。
 period_ticks 留空表示无周期，有值时必须为正；execute_on_applied 只用于周期效果。
 
-成本必须 Instant、Add、概率 1、非周期，每个属性只能有一条修改器，且全等级成本为负。
+成本必须 Instant、AddBase、概率 1、非周期，每个属性只能有一条修改器，且全等级成本为负。
 不消耗属性资源使用空 cost_effect_id。背包等额外消耗直接填写技能的 `additional_costs`
 内联列表；编译器按列表顺序构造 GAS `AdditionalCost`，见下方技能内联额外消耗。
 `cost_effect_id` 只表示属性 Effect 成本，不能把物品 ID 填入该列；两类成本可以同时使用。

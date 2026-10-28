@@ -31,7 +31,7 @@ fn modifier(id: i32, base: f32) -> Modifier {
     Modifier {
         id,
         attribute: "Health".to_owned(),
-        operation: ModifierOperation::Add,
+        operation: ModifierOperation::AddBase,
         magnitude_kind: MagnitudeKind::Flat,
         base,
         per_level: 0.0,

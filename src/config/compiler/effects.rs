@@ -71,10 +71,12 @@ pub(super) fn compile_effects(
                     )
                 })?;
             let operation = match modifier.operation {
-                data::ModifierOperation::Add => ModifierOperation::Add,
-                data::ModifierOperation::PercentAdd => ModifierOperation::PercentAdd,
-                data::ModifierOperation::Multiply => ModifierOperation::Multiply,
+                data::ModifierOperation::AddBase => ModifierOperation::AddBase,
+                data::ModifierOperation::MultiplyAdditive => ModifierOperation::MultiplyAdditive,
+                data::ModifierOperation::DivideAdditive => ModifierOperation::DivideAdditive,
                 data::ModifierOperation::Override => ModifierOperation::Override,
+                data::ModifierOperation::MultiplyCompound => ModifierOperation::MultiplyCompound,
+                data::ModifierOperation::AddFinal => ModifierOperation::AddFinal,
             };
             let magnitude = match prepared_modifier.magnitude {
                 PreparedMagnitude::Flat(value) => ModifierMagnitude::Flat(value),

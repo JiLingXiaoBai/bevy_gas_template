@@ -22,7 +22,7 @@ pub fn empty_effect_tags() -> EffectTags {
 pub fn add_modifier(attribute: AttributeId, value: f32) -> Modifier {
     Modifier::new(
         attribute,
-        ModifierOperation::Add,
+        ModifierOperation::AddBase,
         ModifierMagnitude::Flat(value),
     )
 }

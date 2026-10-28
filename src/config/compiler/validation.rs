@@ -478,9 +478,9 @@ fn validate_cost(
         let modifier = prepared_modifier.row;
         count += 1;
         require(
-            modifier.operation == ModifierOperation::Add,
+            modifier.operation == ModifierOperation::AddBase,
             &context,
-            "cost modifiers must use Add",
+            "cost modifiers must use AddBase",
         )?;
         require(
             attributes.insert(&modifier.attribute),

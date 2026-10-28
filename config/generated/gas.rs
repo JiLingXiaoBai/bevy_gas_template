@@ -149,14 +149,18 @@ impl Decode for MagnitudeKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 pub enum ModifierOperation {
-    /// Selects Add.
-    Add = 0,
-    /// Selects PercentAdd.
-    PercentAdd = 1,
-    /// Selects Multiply.
-    Multiply = 2,
+    /// Selects AddBase.
+    AddBase = 0,
+    /// Selects MultiplyAdditive.
+    MultiplyAdditive = 1,
+    /// Selects DivideAdditive.
+    DivideAdditive = 2,
     /// Selects Override.
     Override = 3,
+    /// Selects MultiplyCompound.
+    MultiplyCompound = 4,
+    /// Selects AddFinal.
+    AddFinal = 5,
 }
 
 impl TryFrom<i32> for ModifierOperation {
@@ -164,10 +168,12 @@ impl TryFrom<i32> for ModifierOperation {
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::Add),
-            1 => Ok(Self::PercentAdd),
-            2 => Ok(Self::Multiply),
+            0 => Ok(Self::AddBase),
+            1 => Ok(Self::MultiplyAdditive),
+            2 => Ok(Self::DivideAdditive),
             3 => Ok(Self::Override),
+            4 => Ok(Self::MultiplyCompound),
+            5 => Ok(Self::AddFinal),
             _ => Err(DecodeError::new(
                 0,
                 format!("invalid ModifierOperation value: {value}"),
@@ -1196,10 +1202,12 @@ pub const SCHEMA_DESCRIPTOR: &str = concat!(
     "Flat=0;",
     "LinearLevel=1;",
     "enum:ModifierOperation;",
-    "Add=0;",
-    "PercentAdd=1;",
-    "Multiply=2;",
+    "AddBase=0;",
+    "MultiplyAdditive=1;",
+    "DivideAdditive=2;",
     "Override=3;",
+    "MultiplyCompound=4;",
+    "AddFinal=5;",
     "enum:SelectionKind;",
     "SelfTarget=0;",
     "ExplicitEntity=1;",

@@ -10,7 +10,7 @@ use bevy_gas_template::config::generated::gas::{
     MagnitudeKind, Modifier, ModifierOperation, SelectionKind, SortOrder, TargetScope, Targeting,
     TbAbility, TbAbilityTask, TbAttribute, TbEffect, TbModifier, TbTargeting,
 };
-use bevy_gas_template::config::generated::{ByteBuf, TABLE_FILES, Tables};
+use bevy_gas_template::config::generated::{ByteBuf, Decode, TABLE_FILES, Tables};
 use bevy_gas_template::config::{
     AbilityId, ConfigErrorKind, ConfigLocation, ConfiguredAbilities, EffectId, compile_catalog,
     grant_ability, load_tables, read_package, revoke_ability,
@@ -211,7 +211,7 @@ fn modifier_parameter_checks_respect_magnitude_kind_and_feature() {
             TbModifier::from_rows(vec![Modifier {
                 id: 1,
                 attribute: "Health".to_owned(),
-                operation: ModifierOperation::Add,
+                operation: ModifierOperation::AddBase,
                 magnitude_kind,
                 base,
                 per_level,
@@ -249,7 +249,7 @@ fn linear_effect_tables(
             Modifier {
                 id: 1,
                 attribute: "Health".to_owned(),
-                operation: ModifierOperation::Add,
+                operation: ModifierOperation::AddBase,
                 magnitude_kind: MagnitudeKind::Flat,
                 base: 10.0,
                 per_level: 0.0,
@@ -257,7 +257,7 @@ fn linear_effect_tables(
             Modifier {
                 id: 2,
                 attribute: "Health".to_owned(),
-                operation: ModifierOperation::Add,
+                operation: ModifierOperation::AddBase,
                 magnitude_kind: MagnitudeKind::LinearLevel,
                 base,
                 per_level,
@@ -345,6 +345,106 @@ fn compiled_linear_effect_runtime_overflow_is_rejected_before_any_modifier_runs(
         for duration in [DurationKind::Instant, DurationKind::DurationTicks] {
             let tables = linear_effect_tables(sign * f32::MAX, sign * f32::MAX, 1, duration);
             assert_linear_overflow_is_rejected(&tables);
+        }
+    }
+}
+
+#[test]
+fn modifier_operation_binary_values_match_ue_and_decode_all_operations() {
+    for (value, operation) in [
+        (0, ModifierOperation::AddBase),
+        (1, ModifierOperation::MultiplyAdditive),
+        (2, ModifierOperation::DivideAdditive),
+        (3, ModifierOperation::Override),
+        (4, ModifierOperation::MultiplyCompound),
+        (5, ModifierOperation::AddFinal),
+    ] {
+        assert_eq!(operation as i32, value);
+        assert_eq!(ModifierOperation::try_from(value).unwrap(), operation);
+        let mut input = ByteBuf::new(vec![value as u8]);
+        assert_eq!(ModifierOperation::decode(&mut input).unwrap(), operation);
+    }
+    assert!(ModifierOperation::try_from(6).is_err());
+    assert!(ModifierOperation::decode(&mut ByteBuf::new(vec![6])).is_err());
+}
+
+#[test]
+fn compiled_modifiers_preserve_six_operation_semantics_for_instant_and_duration_effects() {
+    for (duration, expected) in [
+        (DurationKind::Instant, 87.5),
+        (DurationKind::DurationTicks, 115.0),
+    ] {
+        for override_value in [None, Some(42.0)] {
+            let mut tables = linear_effect_tables(1.0, 0.0, 1, duration);
+            let mut operations = vec![
+                (ModifierOperation::AddBase, 10.0),
+                (ModifierOperation::MultiplyAdditive, 1.5),
+                (ModifierOperation::DivideAdditive, 2.0),
+                (ModifierOperation::DivideAdditive, 2.0),
+                (ModifierOperation::MultiplyCompound, 2.0),
+                (ModifierOperation::AddFinal, 5.0),
+            ];
+            if let Some(value) = override_value {
+                operations.push((ModifierOperation::Override, value));
+            }
+            let modifiers: Vec<_> = operations
+                .into_iter()
+                .enumerate()
+                .map(|(index, (operation, base))| Modifier {
+                    id: index as i32 + 1,
+                    attribute: "Health".to_owned(),
+                    operation,
+                    magnitude_kind: MagnitudeKind::Flat,
+                    base,
+                    per_level: 0.0,
+                })
+                .collect();
+            let mut effect = tables.tb_effect.get(&1).unwrap().as_ref().clone();
+            effect.modifier_ids = modifiers.iter().map(|modifier| modifier.id).collect();
+            tables.tb_effect = Arc::new(TbEffect::from_rows(vec![effect]).unwrap());
+            tables.tb_modifier = Arc::new(TbModifier::from_rows(modifiers).unwrap());
+
+            let mut app = app();
+            let catalog = compile_catalog(&tables, app.world_mut()).unwrap();
+            let health = catalog.attribute("Health").unwrap();
+            let definition = Arc::clone(catalog.effect(EffectId(1)).unwrap());
+            let mut bundle = GameplayAbilitySystemBundle::default();
+            bundle
+                .attributes
+                .initialize_attribute(
+                    app.world().resource::<AttributeIdManager>(),
+                    health,
+                    100.0,
+                    None,
+                )
+                .unwrap();
+            let target = app.world_mut().spawn(bundle).id();
+            app.world_mut()
+                .run_system_once(move |mut params: EffectSystemParams| {
+                    apply_gameplay_effect(
+                        target,
+                        &definition,
+                        &mut params,
+                        &EffectPayload::new(target, None, 1),
+                    )
+                })
+                .unwrap()
+                .unwrap();
+            let actual = app
+                .world_mut()
+                .run_system_once(
+                    move |manager: Res<AttributeIdManager>,
+                          mut attributes: Query<&mut AttributeSet>| {
+                        attributes
+                            .get_mut(target)
+                            .unwrap()
+                            .get_current_value(&manager, health)
+                            .unwrap()
+                            .unwrap()
+                    },
+                )
+                .unwrap();
+            assert_eq!(actual, override_value.unwrap_or(expected));
         }
     }
 }

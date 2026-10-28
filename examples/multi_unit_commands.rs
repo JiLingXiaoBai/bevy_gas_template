@@ -152,7 +152,7 @@ fn make_app(logging: bool) -> ExampleResult<(App, Scenario)> {
     let effect = Arc::new(GameplayEffect::new(
         vec![Modifier::new(
             health,
-            ModifierOperation::Add,
+            ModifierOperation::AddBase,
             ModifierMagnitude::Flat(-10.0),
         )],
         EffectDurationTicks::Instant,

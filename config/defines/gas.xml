@@ -26,10 +26,12 @@
     </enum>
 
     <enum name="ModifierOperation" flags="false" unique="true" comment="Valid ModifierOperation values.">
-        <var name="Add" value="0" comment="Add behavior."/>
-        <var name="PercentAdd" value="1" comment="PercentAdd behavior."/>
-        <var name="Multiply" value="2" comment="Multiply behavior."/>
+        <var name="AddBase" value="0" comment="Adds before multiplication and division."/>
+        <var name="MultiplyAdditive" value="1" comment="Multiplies by one plus the sum of multiplier increments."/>
+        <var name="DivideAdditive" value="2" comment="Divides by one plus the sum of divisor increments."/>
         <var name="Override" value="3" comment="Override behavior."/>
+        <var name="MultiplyCompound" value="4" comment="Multiplies all compound multipliers together."/>
+        <var name="AddFinal" value="5" comment="Adds after percentage, division, and multiplication."/>
     </enum>
 
     <enum name="MagnitudeKind" flags="false" unique="true" comment="Valid MagnitudeKind values.">
