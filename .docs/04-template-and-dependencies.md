@@ -51,8 +51,8 @@ my_game 可以替换为 bevy_gas_template 或任意游戏目录名，保持同�
 
 ## Bevy 0.20 升级基线
 
-模板和同级 GAS 库统一使用 Bevy 0.20.0，最低要求 Rust 1.97.1，edition 仍为 2024。
-最低工具链版本来自 [Bevy 0.20.0 Cargo 元数据](https://docs.rs/crate/bevy/0.20.0/source/Cargo.toml)。
+模板和同级 GAS 库统一使用 Bevy 0.20.1，最低要求 Rust 1.97.1，edition 仍为 2024。
+最低工具链版本来自 [Bevy 0.20.1 Cargo 元数据](https://docs.rs/crate/bevy/0.20.1/source/Cargo.toml)。
 更新两个项目的 Bevy 依赖后，应分别由 Cargo 更新锁文件，并按下面的本地联调流程验证；
 保持 `bevy_gas = { path = "../bevy_gas" }`，无需切换到 Git 依赖。
 

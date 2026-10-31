@@ -46,7 +46,7 @@ workspace/
 
 新游戏独立维护，模板后续修改不会自动同步，GitHub 也不会替换 Rust 包名。可以先沿用 `bevy_gas_template`；改名时同步 Cargo package/default-run、源码、测试和保留的示例导入，以及文档和技能上下文。详见 [模板使用与依赖维护](.docs/04-template-and-dependencies.md)。
 
-1. 确认 `../bevy_gas/Cargo.toml` 存在，安装 Rust 1.97.1+，项目使用 edition 2024 与 Bevy 0.20.0。
+1. 确认 `../bevy_gas/Cargo.toml` 存在，安装 Rust 1.97.1+，项目使用 edition 2024 与 Bevy 0.20.1。
 2. 运行 `cargo fetch --locked`，然后 `cargo run` 启动基础程序。
 3. 可直接删除整个 `examples/`，再在 `src/game/plugin.rs` 的 `GamePlugin` 中注册自己的组件、资源和系统。
 4. 按需添加配置加载、输入、索敌、相机与场景。`tests/` 可以独立删除，但建议保留基础回归；`src/application/` 和 `config/generated/` 属于基础代码，应保留。
