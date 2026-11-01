@@ -3,7 +3,7 @@ name: luban-generate-debug
 description: Diagnoses Luban generation and validation failures. Use when gen.bat fails, schema/data errors appear, or the user pastes Luban logs / --errorFormat json reports.
 ---
 
-## bevy_gas_template project context
+## project context
 
 Before using this skill in this repository, read the [AI skills project conventions](../../../.docs/02-luban-toolchain.md#ai-skills).
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
@@ -11,7 +11,6 @@ Configuration code belongs to `bevy_gas_template::config`; the `bevy_gas` depend
 Use this game's `tools/luban/` and local `.cache/`; published binary data belongs in `assets/config/`.
 For missing table registrations or enum definitions in this repository, inspect `config/defines/gas.xml` and its entry in `config/luban.conf`.
 Data and row field headers remain in `config/tables/*.xlsx`; the `__tables__` examples below refer to the upstream Excel Schema option.
-
 
 # Luban: 生成失败排查
 

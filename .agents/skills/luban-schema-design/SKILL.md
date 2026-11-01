@@ -3,7 +3,7 @@ name: luban-schema-design
 description: Designs Luban schema (beans, enums, polymorphism, collections, groups). Use when modeling config structures, inheritance, nested beans, or choosing Excel vs XML schema.
 ---
 
-## bevy_gas_template project context
+## project context
 
 Before using this skill in this repository, read the [AI skills project conventions](../../../.docs/02-luban-toolchain.md#ai-skills).
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
@@ -17,7 +17,6 @@ See the [configuration guide](../../../.docs/03-gas-configuration.md#技能内�
 Add other beans to that XML only when needed; do not duplicate row beans inferred from the data headers.
 `builtin.xml` contains Luban built-ins, and the Excel Schema files mentioned below are generic alternatives.
 
-
 # Luban: Schema 设计
 
 ## 原则
@@ -28,12 +27,12 @@ Add other beans to that XML only when needed; do not duplicate row beans inferre
 
 ## 选型
 
-| 需求 | 建议 |
-|------|------|
-| 扁平行表 | Excel + `read_schema_from_file` |
-| 多模块/复用 bean | XML `Defines/*.xml` 或 `__beans__` |
-| 多态配置 | 抽象 bean + 子类；Excel 填类型名/别名 |
-| 一对多嵌套 | `list,Bean` / 多行 / sep 紧凑格式 |
+| 需求             | 建议                                  |
+| ---------------- | ------------------------------------- |
+| 扁平行表         | Excel + `read_schema_from_file`       |
+| 多模块/复用 bean | XML `Defines/*.xml` 或 `__beans__`    |
+| 多态配置         | 抽象 bean + 子类；Excel 填类型名/别名 |
+| 一对多嵌套       | `list,Bean` / 多行 / sep 紧凑格式     |
 
 ## 类型要点
 

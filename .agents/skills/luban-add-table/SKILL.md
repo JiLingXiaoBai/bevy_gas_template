@@ -3,7 +3,7 @@ name: luban-add-table
 description: Adds a new Luban config table (Excel + __tables__ registration + regenerate). Use when creating a new table, registering reward/item tables, or when the user asks to add a Luban table.
 ---
 
-## bevy_gas_template project context
+## project context
 
 Before using this skill in this repository, read the [AI skills project conventions](../../../.docs/02-luban-toolchain.md#ai-skills).
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
@@ -12,7 +12,6 @@ Use this game's `tools/luban/` and local `.cache/`; published binary data belong
 In this repository, create Excel data in `config/tables/` and register GAS tables in `config/defines/gas.xml`.
 Keep row fields in the data workbook headers; do not recreate `__tables__.xlsx`, `__beans__.xlsx`, or `__enums__.xlsx`.
 Use `config/export.ps1` to regenerate after registration.
-
 
 # Luban: 加一张表
 
@@ -45,11 +44,11 @@ dotnet Luban.dll --conf luban.conf -t all -d json -x outputDataDir=output
 
 ## 常见失败
 
-| 现象 | 处理 |
-|------|------|
-| 新文件无输出 | 是否写入 `__tables__` |
-| sheet 被忽略 | A1 是否 `##` 开头 |
-| bean 冲突 | 关闭重复的 `__beans__` 定义 |
+| 现象         | 处理                        |
+| ------------ | --------------------------- |
+| 新文件无输出 | 是否写入 `__tables__`       |
+| sheet 被忽略 | A1 是否 `##` 开头           |
+| bean 冲突    | 关闭重复的 `__beans__` 定义 |
 
 ## 参考
 

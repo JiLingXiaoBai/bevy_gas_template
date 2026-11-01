@@ -3,13 +3,12 @@ name: luban-validator
 description: "Writes Luban field validators (ref, range, path, size, set, regex, non-default). Use when adding validation rules on types or Excel ##type cells."
 ---
 
-## bevy_gas_template project context
+## project context
 
 Before using this skill in this repository, read the [AI skills project conventions](../../../.docs/02-luban-toolchain.md#ai-skills).
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
 Configuration code belongs to `bevy_gas_template::config`; the `bevy_gas` dependency contains the GAS runtime.
 Use this game's `tools/luban/` and local `.cache/`; published binary data belongs in `assets/config/`.
-
 
 # Luban: 校验器
 
@@ -17,16 +16,16 @@ Use this game's `tools/luban/` and local `.cache/`; published binary data belong
 
 ## 常用写法
 
-| 能力 | 示例 |
-|------|------|
-| 非默认 | `int!`、`int?!` |
-| 引用 | `int#ref=item.TbItem` |
-| 引用可跳过 0 | `int#ref=item.TbItem?` |
-| 范围 | `int#range=[1,100]` |
-| 路径 | `string#path=unity` + `-x pathValidator.rootDir=...` |
-| 集合大小 | `(list#size=4),int` |
-| 允许值 | `int#set=1;2;3` |
-| 正则 | `string#regex=^[a-z]+$` |
+| 能力         | 示例                                                 |
+| ------------ | ---------------------------------------------------- |
+| 非默认       | `int!`、`int?!`                                      |
+| 引用         | `int#ref=item.TbItem`                                |
+| 引用可跳过 0 | `int#ref=item.TbItem?`                               |
+| 范围         | `int#range=[1,100]`                                  |
+| 路径         | `string#path=unity` + `-x pathValidator.rootDir=...` |
+| 集合大小     | `(list#size=4),int`                                  |
+| 允许值       | `int#set=1;2;3`                                      |
+| 正则         | `string#regex=^[a-z]+$`                              |
 
 写在 XML `type="..."` 或 Excel `##type`。
 

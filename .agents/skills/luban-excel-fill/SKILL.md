@@ -3,7 +3,7 @@ name: luban-excel-fill
 description: "Explains and fills Luban Excel config tables by header conventions. Use when designers fill sheets, ##var/##type/##group rows, nested cells, or polymorphism columns."
 ---
 
-## bevy_gas_template project context
+## project context
 
 Before using this skill in this repository, read the [AI skills project conventions](../../../.docs/02-luban-toolchain.md#ai-skills).
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
@@ -13,18 +13,17 @@ Ability `additional_costs` is an inline typed list of `gas.AbilityAdditionalCost
 The current field type is `(list#sep=;),gas.AbilityAdditionalCost`; the bean uses comma-separated integer `resource,amount` fields, such as `5001,1;5002,3`. Resource IDs allow the full i32 range, including zero and negatives; amount must be in `1..=4294967295`.
 Use the existing headers and the [configuration guide](../../../.docs/03-gas-configuration.md#技能内联额外消耗) for examples. Map old resource names to game-defined numeric IDs and regenerate; do not recreate the removed cost workbook.
 
-
 # Luban: Excel 填表
 
 ## 最小约定
 
-| 行 | 含义 |
-|----|------|
-| `##var` / `##` | 字段名 |
-| `##type` | 类型 |
-| `##group` | `c`/`s`/`e`；空=跟随默认 |
-| `##` 注释行 | 中文说明，不进逻辑 |
-| `#` 开头列名 | 注释列，不导出 |
+| 行             | 含义                     |
+| -------------- | ------------------------ |
+| `##var` / `##` | 字段名                   |
+| `##type`       | 类型                     |
+| `##group`      | `c`/`s`/`e`；空=跟随默认 |
+| `##` 注释行    | 中文说明，不进逻辑       |
+| `#` 开头列名   | 注释列，不导出           |
 
 - A1 必须以 `##` 开头，否则整张 sheet 忽略。
 - 空字符串填 `""`（按项目约定）。

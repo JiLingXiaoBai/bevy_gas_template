@@ -3,13 +3,12 @@ name: luban-runtime-load
 description: Guides Luban runtime Tables loading patterns for C#/other languages. Use when integrating generated code, choosing loader, or hot-reload/testing config load.
 ---
 
-## bevy_gas_template project context
+## project context
 
 Before using this skill in this repository, read the [AI skills project conventions](../../../.docs/02-luban-toolchain.md#ai-skills).
 Use those conventions for paths, MCP calls, export commands, and Rust/Bevy integration; the upstream examples below are generic.
 Configuration code belongs to `bevy_gas_template::config`; the `bevy_gas` dependency contains the GAS runtime.
 Use this game's `tools/luban/` and local `.cache/`; published binary data belongs in `assets/config/`.
-
 
 # Luban: 运行时加载
 
