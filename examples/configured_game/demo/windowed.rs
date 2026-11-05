@@ -173,6 +173,9 @@ fn read_execution_results(
         };
         status.pending.remove(index);
         match &result.outcome {
+            AbilityCommandOutcome::Cancelled => {
+                status.message = "Laser cancelled before activation.".into();
+            }
             AbilityCommandOutcome::Succeeded => {
                 status.message =
                     "Laser accepted. Its configured tasks control damage and completion.".into();

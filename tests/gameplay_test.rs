@@ -3,6 +3,9 @@
 #[path = "gameplay_test/support_test.rs"]
 mod support_test;
 
+#[path = "gameplay_test/task_adapter_test.rs"]
+mod task_adapter_test;
+
 #[path = "gameplay_test/gameplay_position_test.rs"]
 mod gameplay_position_test;
 

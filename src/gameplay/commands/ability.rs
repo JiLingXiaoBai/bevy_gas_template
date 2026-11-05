@@ -40,6 +40,7 @@ pub struct AbilityCommand {
     pub(super) handle: AbilitySpecHandle,
     pub(super) targets: CommandTargets,
     pub(super) origin: AbilityCommandOrigin,
+    pub(super) task_driven_completion: bool,
 }
 
 impl AbilityCommand {
@@ -57,6 +58,7 @@ impl AbilityCommand {
             handle,
             targets: CommandTargets::Direct(targets.into()),
             origin: AbilityCommandOrigin::Input,
+            task_driven_completion: false,
         }
     }
 
@@ -75,12 +77,20 @@ impl AbilityCommand {
             handle,
             targets: CommandTargets::Targeted { input, definition },
             origin: AbilityCommandOrigin::Input,
+            task_driven_completion: false,
         }
     }
 
     /// Returns this command with the specified root activation reason.
     pub fn with_origin(mut self, origin: AbilityCommandOrigin) -> Self {
         self.origin = origin;
+        self
+    }
+
+    /// Lets the correlated task program own normal completion of this activation.
+    /// The caller must attach that program on success or cancel the activation on failure.
+    pub fn with_task_driven_completion(mut self, enabled: bool) -> Self {
+        self.task_driven_completion = enabled;
         self
     }
 }
@@ -118,6 +128,8 @@ impl Error for AbilityCommandSubmissionError {}
 /// Terminal outcome of one consumed ability command.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AbilityCommandOutcome {
+    /// Cancelled before adapter intake at an explicit lifecycle boundary.
+    Cancelled,
     /// GAS accepted the primary activation; this does not mean the ability has finished.
     Succeeded,
     /// Spatial acquisition failed before an activation was submitted.
@@ -145,6 +157,9 @@ pub struct AbilityCommandResult {
     pub targeting_request_id: Option<TargetingRequestId>,
     /// Accepted GAS request identifier, absent when acquisition or submission failed.
     pub execution_request_id: Option<GameplayExecutionRequestId>,
+    /// Root chain allocated for this command; correlate only depth-zero active instances.
+    /// Success alone does not guarantee that this instance survived startup or cancellation.
+    pub activation_chain_id: Option<u64>,
     /// Final result of this root activation request.
     pub outcome: AbilityCommandOutcome,
 }

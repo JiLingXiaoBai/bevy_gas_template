@@ -77,6 +77,22 @@ impl<C: Send + Sync + 'static> GameCommandQueue<C> {
         self.commands.pop_front()
     }
 
+    /// Removes one unconsumed command without changing the IDs or order of others.
+    pub fn remove(&mut self, id: GameCommandId) -> Option<C> {
+        let index = self
+            .commands
+            .iter()
+            .position(|(candidate, _)| *candidate == id)?;
+        self.commands.remove(index).map(|(_, command)| command)
+    }
+    /// Looks up unconsumed work without changing queue order or ownership.
+    pub fn get(&self, id: GameCommandId) -> Option<&C> {
+        self.commands
+            .iter()
+            .find(|(candidate, _)| *candidate == id)
+            .map(|(_, command)| command)
+    }
+
     /// Returns the number of buffered commands.
     pub fn len(&self) -> usize {
         self.commands.len()

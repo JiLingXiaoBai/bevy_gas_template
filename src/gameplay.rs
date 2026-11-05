@@ -1,6 +1,7 @@
 //! Reusable game-owned input bindings, spatial sampling, targeting, and positions.
 
 pub mod ability_input;
+pub mod ability_tasks;
 pub mod commands;
 pub mod position;
 pub mod randoms;

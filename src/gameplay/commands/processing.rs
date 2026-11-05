@@ -23,6 +23,7 @@ struct PreparedCommand {
     source: Entity,
     handle: AbilitySpecHandle,
     origin: AbilityCommandOrigin,
+    task_driven_completion: bool,
     targets: PreparedTargets,
 }
 
@@ -54,6 +55,7 @@ pub(super) fn prepare_ability_commands(
             source: command.source,
             handle: command.handle,
             origin: command.origin,
+            task_driven_completion: command.task_driven_completion,
             targets,
         });
     }
@@ -99,6 +101,7 @@ pub(super) fn submit_ability_commands(
             source: command.source,
             targeting_request_id,
             execution_request_id: None,
+            activation_chain_id: None,
             outcome: AbilityCommandOutcome::SubmissionFailed(
                 AbilityCommandSubmissionError::MissingExecutionResult,
             ),
@@ -106,6 +109,7 @@ pub(super) fn submit_ability_commands(
         match targets {
             Ok(targets) => {
                 let chain = execution.new_root_chain(command.handle);
+                completion.activation_chain_id = Some(chain.get_chain_id());
                 let context = match command.origin {
                     AbilityCommandOrigin::Input => {
                         AbilityActivationContext::input(command.source, chain)
@@ -114,6 +118,7 @@ pub(super) fn submit_ability_commands(
                         AbilityActivationContext::direct(command.source, chain)
                     }
                 };
+                let context = context.with_task_driven_completion(command.task_driven_completion);
                 match execution.push_activation(command.source, targets, command.handle, context) {
                     Ok(id) => completion.execution_request_id = Some(id),
                     Err(error) => {
@@ -158,4 +163,10 @@ pub(super) fn collect_ability_command_results(
         }
         results.write(completion);
     }
+}
+
+pub(super) fn is_settled(world: &World) -> bool {
+    world
+        .get_resource::<AbilityCommandState>()
+        .is_none_or(|state| state.prepared.is_empty() && state.completions.is_empty())
 }

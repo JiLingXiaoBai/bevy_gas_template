@@ -16,6 +16,7 @@ impl Plugin for GameplaySchedulePlugin {
             FixedUpdate,
             GameplaySet::Movement
                 .after(GameplayAbilitySystemSet::EffectTicks)
+                .after(bevy_gas::AbilityTaskGraphSet::Advance)
                 .before(GameplayAbilitySystemSet::AbilityTasks),
         )
         .configure_sets(

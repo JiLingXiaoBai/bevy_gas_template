@@ -22,3 +22,5 @@
 - 集成测试按领域放入 `tests/config_test/`、`tests/gameplay_test/`，由同名顶层测试门面加载。示例专用测试留在示例目录，用 cargo test --examples 显式运行。
 - 修改代码后及时更新 `.docs/`；只做与需求有关的修改。
 - 完成后运行 cargo fmt、cargo clippy --all-targets --all-features -- -D warnings、cargo test、cargo test --all-features、cargo build，以及 cargo run -- --headless --ticks 3；同时检查无默认 feature 的 Clippy、test 和 cargo run --no-default-features -- --ticks 3。保留 examples 时导表后补充 cargo test --all-features --examples、cargo test --no-default-features --examples，以及 cargo run --example configured_game -- --headless。
+
+- 自定义任务使用同级 GAS 的程序与生命周期接口；gameplay::ability_tasks 的通用工具保持空间维度无关，具体游戏提供 2D/3D 碰撞形状与查询、房间、阵营和媒体目录，见 [.docs/07-architecture-and-composition.md](.docs/07-architecture-and-composition.md#类型化-abilitytask-接入)。

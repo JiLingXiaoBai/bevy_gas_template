@@ -167,3 +167,20 @@ cargo test --release --no-default-features --test gameplay_test measure_multi_un
 本次 1024 单位场景约 93.5% 的 tick 耗时落在效果需求收敛，说明后续大规模 RTS 优化应优先
 分析该路径。当前结果用于保留可重复运行的起点；修改 GAS 收敛策略前仍需多次测量与专门
 Profiling，不能仅凭总均值推断复杂度或跨机器表现。
+
+## 类型化 AbilityTask 接入
+
+2026-11-05。模板同步 gameplay::ability_tasks 的 phase_sample、AbilityCommand::with_task_driven_completion、命令取消/完成边界，以及程序 Advance 在 Movement 前的顺序。
+
+任务工具层保持空间维度无关。初次同步的 TaskHitVolume 使用 Vec2、矩形和左右朝向，已收回游戏的 game::combat::HitVolume。具体游戏任务自行选择 2D/3D 坐标、碰撞形状、旋转与物理查询，通过同一个 CustomAbilityTask 接口接入时钟和生命周期；模板不预设碰撞后端。
+
+类型实现 CustomAbilityTask（Component + Clone）；AbilityTaskNode::task 建立叶子，Sequence/Parallel 组合后 compile 校验。实际激活成功后 attach_ability_task_graph，并通过 add_systems 显式安装执行器。命中任务通常在 RequestProducers 使用移动后的位置。
+
+设置 with_task_driven_completion(true) 的调用方必须在成功后建立程序、失败时取消技能；默认命令和配置演示仍保留原 EndAbility。cleanup 释放任务控制权，终态根读完后删除；暂停同时门控程序和执行器。
+可运行接入验证见 [task_adapter_test](../tests/gameplay_test/task_adapter_test.rs)。基础 main 仍不加载配置或创建战斗。
+
+2026-11-05 实际验证：cargo fmt、fmt --all --check、fetch --locked、全目标全 feature Clippy、cargo test、cargo test --all-features、cargo build、两种 feature 的 3 tick 启动，以及无默认 feature Clippy/test 全部通过。默认/全 feature 各 93 项测试通过，无默认 feature 88 项通过；各 2 项性能基准 ignored。
+
+config/export.ps1 完成真实导表、隔离编译和数据校验，生成代码没有新增差异。导表后全 feature / 无默认 feature 的示例测试分别 8 / 9 项通过，configured_game --headless 成功退出。新增两项任务适配测试；配置示例补齐命令取消结果。空间维度修正后保留八份通用文件，与游戏项目逐文件内容比对一致。检查使用进程级 CARGO_BUILD_JOBS=1，没有改动依赖或持久构建配置；没有人工窗口/声卡验收。
+
+同日移除 2D 几何后，重新执行上述完整矩阵、真实导表与示例，全部通过，模板测试数量不变。任务接入测试通过阶段更新编号验证执行顺序，几何测试已随实现归回游戏；记录位于系统临时目录 codex-ability-task-checks/bevy_gas_template/dimension-results.json。
